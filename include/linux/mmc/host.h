@@ -388,6 +388,7 @@ struct mmc_host {
 	unsigned int		actual_clock;	/* Actual HC clock rate */
 
 	unsigned int		slotno;	/* used for sdio acpi binding */
+	unsigned int		doing_voltage_switch;
 
 #ifdef CONFIG_MMC_EMBEDDED_SDIO
 	struct {

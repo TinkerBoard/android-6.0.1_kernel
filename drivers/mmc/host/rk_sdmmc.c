@@ -930,12 +930,17 @@ static void dw_mci_submit_data(struct dw_mci *host, struct mmc_data *data)
 static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
 {
 	struct dw_mci *host = slot->host;	
+	struct mmc_host *mmc = host->mmc;
 	unsigned long timeout = jiffies + msecs_to_jiffies(500);
 	unsigned int cmd_status = 0;
 
 #ifdef SDMMC_WAIT_FOR_UNBUSY
 	bool ret = true;
 	timeout = jiffies + msecs_to_jiffies(SDMMC_WAIT_FOR_UNBUSY);
+
+	/* busy is normal, during voltage_switch. */
+	if (mmc->doing_voltage_switch)
+		goto start_cmd;
 	
 	if (test_bit(DW_MMC_CARD_PRESENT, &slot->flags)) {
 		while (ret) {
@@ -952,8 +957,9 @@ static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
 				"mci_send_cmd: wait for unbusy timeout! [%s]",
 				mmc_hostname(host->mmc));
 	}
+start_cmd:
 #endif
- 
+
 	mci_writel(host, CMDARG, arg);
 	wmb();
 	mci_writel(host, CMD, SDMMC_CMD_START | cmd);
@@ -976,11 +982,23 @@ static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
 static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 {
 	struct dw_mci *host = slot->host;
+	struct mmc_host *mmc = host->mmc;
 	unsigned int tempck,clock = slot->clock;
 	u32 div;
 	u32 clk_en_a;
 	u32 sdio_int;
+	u32 sdmmc_cmd_bits = SDMMC_CMD_UPD_CLK | SDMMC_CMD_PRV_DAT_WAIT;
 
+	/* We must continue to set bit 28 in CMD until the change is complete */
+	if (mmc->doing_voltage_switch)
+		sdmmc_cmd_bits |= SDMMC_CMD_VOLT_SWITCH;
+
+	if (host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) {
+		if (clock == 50000000)
+			host->bus_hz = 50000000;
+		else
+			host->bus_hz = host->pdata->bus_hz;
+	}
 	MMC_DBG_INFO_FUNC(host->mmc,
 			"%s: clock=%d, current_speed=%d, bus_hz=%d, forc=%d[%s]\n",
 			__FUNCTION__, clock, host->current_speed, host->bus_hz,
@@ -988,12 +1006,7 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 
 	if (!clock) {
 		mci_writel(host, CLKENA, 0);
-		#ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-                if(host->svi_flags == 0)
-                        mci_send_cmd(slot, SDMMC_CMD_UPD_CLK | SDMMC_CMD_PRV_DAT_WAIT, 0);
-                #else
-                mci_send_cmd(slot, SDMMC_CMD_UPD_CLK | SDMMC_CMD_PRV_DAT_WAIT, 0);
-                #endif
+		mci_send_cmd(slot, sdmmc_cmd_bits, 0);
 	} else if (clock != host->current_speed || force_clkinit) {
 		div = host->bus_hz / clock;
 		if (host->bus_hz % clock && host->bus_hz > clock)
@@ -1021,8 +1034,7 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 		mci_writel(host, CLKSRC, 0);
 
 		/* inform CIU */
-		mci_send_cmd(slot,
-			     SDMMC_CMD_UPD_CLK | SDMMC_CMD_PRV_DAT_WAIT, 0);
+		mci_send_cmd(slot, sdmmc_cmd_bits, 0);
                         
                 if(clock <= 400*1000){
 	                MMC_DBG_BOOT_FUNC(host->mmc,
@@ -1092,8 +1104,7 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 		mci_writel(host, CLKDIV, div);
 
 		/* inform CIU */
-		mci_send_cmd(slot,
-			     SDMMC_CMD_UPD_CLK | SDMMC_CMD_PRV_DAT_WAIT, 0);
+		mci_send_cmd(slot, sdmmc_cmd_bits, 0);
 
 		/* enable clock; only low power if no SDIO */
 		clk_en_a = SDMMC_CLKEN_ENABLE << slot->id;
@@ -1108,8 +1119,7 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 		mci_writel(host, CLKENA, clk_en_a);
 
 		/* inform CIU */
-		mci_send_cmd(slot,
-			     SDMMC_CMD_UPD_CLK | SDMMC_CMD_PRV_DAT_WAIT, 0);
+		mci_send_cmd(slot, sdmmc_cmd_bits, 0);
 		/* keep the clock with reflecting clock dividor */
 		slot->__clk_old = clock << div;
 	}
@@ -1178,25 +1188,19 @@ static void dw_mci_wait_unbusy(struct dw_mci *host)
 int dw_mci_card_busy(struct mmc_host *mmc)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
-	struct dw_mci *host = slot->host;
+	u32 status;
 
-        MMC_DBG_INFO_FUNC(host->mmc, "dw_mci_card_busy: svi_flags = %d [%s]", \
-                                host->svi_flags, mmc_hostname(host->mmc));	
-    
-        /* svi toggle*/
-        if(host->svi_flags == 0){
-                /*first svi*/
-                host->svi_flags = 1;
-                return host->svi_flags;           
-    
-        }else{
-                host->svi_flags = 0;
-                return host->svi_flags;   
-    	}
-    	
+	/*
+	 * Check the busy bit which is low when DAT[3:0]
+	 * (the data lines) are 0000
+	 */
+	status = mci_readl(slot->host, STATUS);
 
+	return !!(status &
+		   (SDMMC_STAUTS_DATA_BUSY|SDMMC_STAUTS_MC_BUSY));
 }
 #endif
+
 static void __dw_mci_start_request(struct dw_mci *host,
 				   struct dw_mci_slot *slot,
 				   struct mmc_command *cmd)
@@ -1319,12 +1323,11 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	unsigned long   time_loop;
 	bool ret = true;
 
-	time_loop = jiffies + msecs_to_jiffies(SDMMC_WAIT_FOR_UNBUSY);
+	/* busy is normal, during voltage_switch. */
+	if (mmc->doing_voltage_switch)
+		goto start_ios;
 
-        #ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-        if (host->svi_flags == 1)
-                time_loop = jiffies + msecs_to_jiffies(SDMMC_DATA_TIMEOUT_SD);
-	#endif
+	time_loop = jiffies + msecs_to_jiffies(SDMMC_WAIT_FOR_UNBUSY);
         
 	if (!test_bit(DW_MMC_CARD_PRESENT, &slot->flags)) {
 		dev_info(host->dev, "%s:  no card. [%s]\n",
@@ -1341,17 +1344,14 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	};
 	
 	if (false == ret) {
-		dev_info(host->dev, "slot->flags = %lu ", slot->flags);
-		#ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-                if (host->svi_flags != 1)
-                #endif
 		dump_stack();
 		dev_err(host->dev,
 			"%s:  wait for unbusy timeout.. STATUS = 0x%x [%s]\n",
 			__FUNCTION__, regs, mmc_hostname(mmc));
 	}
+start_ios:
         #endif
-        
+
 	switch (ios->bus_width) {
 	case MMC_BUS_WIDTH_4:
 		slot->ctype = SDMMC_CTYPE_4BIT;
@@ -2911,8 +2911,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 
 		if (pending & SDMMC_INT_VSI) {
-			MMC_DBG_SW_VOL_FUNC(host->mmc,
-				"SDMMC_INT_VSI, INT-pending=0x%x. [%s]",
+			printk("SDMMC_INT_VSI, INT-pending=0x%x. [%s]",
 				pending, mmc_hostname(host->mmc));
 			mci_writel(host, RINTSTS, SDMMC_INT_VSI);
 			dw_mci_cmd_interrupt(host, pending);
@@ -3611,7 +3610,9 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
         slot->wp_gpio = dw_mci_of_get_wp_gpio(host->dev, slot->id);
 	
         if (mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO)
-                clear_bit(DW_MMC_CARD_PRESENT, &slot->flags);
+			clear_bit(DW_MMC_CARD_PRESENT, &slot->flags);
+		if (mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO)
+			mmc->doing_voltage_switch = 0;
 
         dw_mci_init_pinctrl(host);
         ret = mmc_add_host(mmc);
