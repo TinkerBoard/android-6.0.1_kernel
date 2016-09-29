@@ -68,6 +68,12 @@ static struct i2c_board_info __initdata i2c_devices_tinker_mcu[] = {
 	},
 };
 
+static struct i2c_board_info __initdata i2c_devices_tinker_ft5406[] = {
+	{
+		I2C_BOARD_INFO("tinker_ft5406", 0x38),
+	},
+};
+
 static struct map_desc rk3288_io_desc[] __initdata = {
 	RK3288_DEVICE(CRU),
 	RK3288_DEVICE(GRF),
@@ -458,6 +464,7 @@ static void __init rk3288_dt_init_timer(void)
 	of_dvfs_init();
 
 	i2c_register_board_info(3, i2c_devices_tinker_mcu, ARRAY_SIZE(i2c_devices_tinker_mcu));
+	i2c_register_board_info(3, i2c_devices_tinker_ft5406, ARRAY_SIZE(i2c_devices_tinker_ft5406));
 }
 
 static void __init rk3288_reserve(void)
