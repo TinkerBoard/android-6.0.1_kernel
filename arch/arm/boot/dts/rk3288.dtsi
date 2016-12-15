@@ -783,6 +783,7 @@
 		reg = <0xff96c000 0x4000>;
 		clocks = <&clk_gates16 7>;
 		clock-names = "pclk_lvds";
+		status = "disabled";
 	};
 
 	edp: edp@ff970000 {
@@ -791,6 +792,7 @@
 		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_edp>, <&clk_edp_24m>, <&clk_gates16 8>;
 		clock-names = "clk_edp", "clk_edp_24m", "pclk_edp";
+		status = "disabled";
 	};
 
 	hdmi: hdmi@ff980000 {
@@ -818,9 +820,22 @@
 		status = "disabled";
 	};
 
-	lcdc0: lcdc@ff930000 {
+	lcdc1: lcdc@ff940000 {
 		compatible = "rockchip,rk3288-lcdc";
 		rockchip,prop = <PRMRY>;
+		rockchip,pwr18 = <0>;
+		rockchip,iommu-enabled = <0>;
+		reg = <0xff940000 0x10000>;
+		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
+		clocks = <&clk_gates15 7>, <&dclk_lcdc1>, <&clk_gates15 8>,
+			 <&pd_vop1>;
+		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc", "pd_lcdc";
+	};
+	
+	lcdc0: lcdc@ff930000 {
+		compatible = "rockchip,rk3288-lcdc";
+		rockchip,prop = <EXTEND>;
 		rockchip,pwr18 = <0>;
 		rockchip,iommu-enabled = <0>;
 		reg = <0xff930000 0x10000>;
@@ -831,19 +846,6 @@
 		status = "disabled";
 		clocks = <&clk_gates15 5>, <&dclk_lcdc0>, <&clk_gates15 6>,
 			 <&pd_vop0>;
-		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc", "pd_lcdc";
-	};
-
-	lcdc1: lcdc@ff940000 {
-		compatible = "rockchip,rk3288-lcdc";
-		rockchip,prop = <EXTEND>;
-		rockchip,pwr18 = <0>;
-		rockchip,iommu-enabled = <0>;
-		reg = <0xff940000 0x10000>;
-		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
-		status = "disabled";
-		clocks = <&clk_gates15 7>, <&dclk_lcdc1>, <&clk_gates15 8>,
-			 <&pd_vop1>;
 		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc", "pd_lcdc";
 	};
 
@@ -1417,8 +1419,8 @@
 		rockchip,isp,cifphy = <1>;
 		rockchip,isp,mipiphy1,reg = <0xff968000 0x4000>;
 		rockchip,gpios = <&gpio7 GPIO_B5 GPIO_ACTIVE_HIGH>;
-		rockchip,isp,iommu_enable = <1>;
-		status = "okay";
+		rockchip,isp,iommu_enable = <0>;
+		status = "disabled";
 	};
 
 	cif: cif@ff950000 {
@@ -1431,7 +1433,7 @@
 			      "cif0_in","g_pclkin_cif","cif0_out";
 		pinctrl-names = "cif_pin_all";
 		pinctrl-0 = <&isp_mipi &isp_dvp_d2d9 &isp_dvp_d10d11>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	ps2c: rockchip-ps2c@ff260000 {
