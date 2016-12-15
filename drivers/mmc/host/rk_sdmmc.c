@@ -4212,6 +4212,7 @@ EXPORT_SYMBOL(dw_mci_remove);
 extern int get_wifi_chip_type(void);
 int dw_mci_suspend(struct dw_mci *host)
 {
+	return 0;
 	if ((host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO) &&
 	    (get_wifi_chip_type() == WIFI_ESP8089 ||
 	     get_wifi_chip_type() == WIFI_SSV6051 ||
@@ -4255,6 +4256,7 @@ int dw_mci_resume(struct dw_mci *host)
 	struct dw_mci_slot *slot;
 	int present = dw_mci_get_cd(host->mmc);
 
+	return 0;
 	if (host->rst_ops &&
 		host->rst_ops->post_resume)
 		host->rst_ops->post_resume(host);
