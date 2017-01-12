@@ -55,7 +55,7 @@
 #define LOG(x...)   printk(KERN_INFO "[WLAN_RFKILL]: "x)
 
 struct rfkill_wlan_data {
-	struct rksdmmc_gpio_wifi_moudle *pdata;
+	struct rksdmmc_gpio_wifi_module *pdata;
     struct wake_lock            wlan_irq_wl;
 };
 
@@ -386,7 +386,7 @@ int rockchip_wifi_ref_voltage(int on)
 int rockchip_wifi_power(int on)
 {
 	struct rfkill_wlan_data *mrfkill = g_rfkill;
-    struct rksdmmc_gpio *poweron, *reset;
+    struct rksdmmc_gpio *poweron, *reset, *chipen;
     struct regulator *ldo = NULL;
     int power = 0;
     bool toggle = false;
@@ -448,6 +448,7 @@ int rockchip_wifi_power(int on)
     } else {
 		poweron = &mrfkill->pdata->power_n;
 		reset = &mrfkill->pdata->reset_n;
+		chipen = &mrfkill->pdata->enable_n;
 
 		if (on){
 			if (gpio_is_valid(poweron->io)) {
@@ -457,6 +458,11 @@ int rockchip_wifi_power(int on)
 
 			if (gpio_is_valid(reset->io)) {
 				gpio_set_value(reset->io, reset->enable);
+				msleep(100);
+			}
+
+			if (gpio_is_valid(chipen->io)) {
+				gpio_set_value(chipen->io, chipen->enable);
 				msleep(100);
 			}
 
@@ -470,6 +476,10 @@ int rockchip_wifi_power(int on)
 
 			if (gpio_is_valid(reset->io)) {
 				gpio_set_value(reset->io, !(reset->enable));
+			}
+
+			if (gpio_is_valid(chipen->io)) {
+				gpio_set_value(reset->io, !(chipen->enable));
 			}
 
             wifi_power_state = 0;
@@ -722,7 +732,7 @@ static int rfkill_rk_setup_gpio(struct rksdmmc_gpio *gpio, const char* prefix, c
 
 #ifdef CONFIG_OF
 static int wlan_platdata_parse_dt(struct device *dev,
-                  struct rksdmmc_gpio_wifi_moudle *data)
+                  struct rksdmmc_gpio_wifi_module *data)
 {
     struct device_node *node = dev->of_node;
     const char *strings;
@@ -844,6 +854,12 @@ static int wlan_platdata_parse_dt(struct device *dev,
 			data->power_n.enable = (flags == GPIO_ACTIVE_HIGH)? 1:0;
 			LOG("%s: get property: WIFI,poweren_gpio = %d, flags = %d.\n", __func__, gpio, flags);
         } else data->power_n.io = -1;
+		gpio = of_get_named_gpio_flags(node, "WIFI,chipen_gpio", 0, &flags);
+		if (gpio_is_valid(gpio)){
+			data->enable_n.io = gpio;
+			data->enable_n.enable = (flags == GPIO_ACTIVE_HIGH)? 1:0;
+			LOG("%s: get property: WIFI,chipen_gpio = %d, flags = %d.\n", __func__, gpio, flags);
+		} else data->enable_n.io = -1;
         gpio = of_get_named_gpio_flags(node, "WIFI,reset_gpio", 0, &flags);
         if (gpio_is_valid(gpio)){
 			data->reset_n.io = gpio;
@@ -930,14 +946,14 @@ static struct notifier_block rfkill_wlan_fb_notifier = {
 static int rfkill_wlan_probe(struct platform_device *pdev)
 {
 	struct rfkill_wlan_data *rfkill;
-	struct rksdmmc_gpio_wifi_moudle *pdata = pdev->dev.platform_data;
+	struct rksdmmc_gpio_wifi_module *pdata = pdev->dev.platform_data;
 	int ret = -1;
 
     LOG("Enter %s\n", __func__);
 
 	if (!pdata) {
 #ifdef CONFIG_OF
-        pdata = kzalloc(sizeof(struct rksdmmc_gpio_wifi_moudle), GFP_KERNEL);
+        pdata = kzalloc(sizeof(struct rksdmmc_gpio_wifi_module), GFP_KERNEL);
         if (!pdata)
             return -ENOMEM;
 
@@ -966,6 +982,9 @@ static int rfkill_wlan_probe(struct platform_device *pdev)
 
         ret = rfkill_rk_setup_gpio(&pdata->reset_n, wlan_name, "wlan_reset");
         if (ret) goto fail_alloc;
+
+        ret = rfkill_rk_setup_gpio(&pdata->enable_n, wlan_name, "wlan_chipen");
+        if (ret) goto fail_alloc;
     }
 
     wake_lock_init(&(rfkill->wlan_irq_wl), WAKE_LOCK_SUSPEND, "rfkill_wlan_wake");
@@ -973,7 +992,8 @@ static int rfkill_wlan_probe(struct platform_device *pdev)
     // Turn off wifi power as default
     if (gpio_is_valid(pdata->power_n.io))
     {
-        gpio_direction_output(pdata->power_n.io, !pdata->power_n.enable);
+		gpio_direction_output(pdata->power_n.io, !pdata->power_n.enable);
+		gpio_direction_output(pdata->enable_n.io, !pdata->enable_n.enable);
     }
 
     if (pdata->wifi_power_remain)
@@ -1022,6 +1042,9 @@ static int rfkill_wlan_remove(struct platform_device *pdev)
     
     if (gpio_is_valid(rfkill->pdata->reset_n.io))
         gpio_free(rfkill->pdata->reset_n.io);
+
+	if (gpio_is_valid(rfkill->pdata->enable_n.io))
+		gpio_free(rfkill->pdata->enable_n.io);
     
 //    if (gpio_is_valid(rfkill->pdata->vddio.io))
 //        gpio_free(rfkill->pdata->vddio.io);
@@ -1059,6 +1082,19 @@ static int rfkill_wlan_resume(struct platform_device *pdev)
     return 0;
 }
 
+static void rfkill_wlan_shutdown(struct platform_device *pdev)
+{
+	struct rfkill_wlan_data *mrfkill = g_rfkill;
+	struct rksdmmc_gpio *poweron, *chipen;
+	poweron = &mrfkill->pdata->power_n;
+	chipen = &mrfkill->pdata->enable_n;
+
+	gpio_set_value(poweron->io, !(poweron->enable));
+	gpio_set_value(chipen->io, !(chipen->enable));
+
+	printk("%s\n", __func__);
+}
+
 #ifdef CONFIG_OF
 static struct of_device_id wlan_platdata_of_match[] = {
     { .compatible = "wlan-platdata" },
@@ -1070,8 +1106,9 @@ MODULE_DEVICE_TABLE(of, wlan_platdata_of_match);
 static struct platform_driver rfkill_wlan_driver = {
 	.probe = rfkill_wlan_probe,
 	.remove = rfkill_wlan_remove,
-    .suspend = rfkill_wlan_suspend,
-    .resume = rfkill_wlan_resume,
+	.suspend = rfkill_wlan_suspend,
+	.resume = rfkill_wlan_resume,
+	.shutdown = rfkill_wlan_shutdown,
 	.driver = {
 		.name = "wlan-platdata",
 		.owner = THIS_MODULE,

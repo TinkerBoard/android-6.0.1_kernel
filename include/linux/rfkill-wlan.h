@@ -24,13 +24,14 @@ struct rksdmmc_pmu {
     int  enable;
 };
 
-struct rksdmmc_gpio_wifi_moudle {
+struct rksdmmc_gpio_wifi_module {
     int sdio_vol;    //sdio reference voltage
     bool vref_ctrl_enble;
     bool wifi_power_remain;
     struct rksdmmc_pmu    mregulator;
     struct rksdmmc_pmu    ioregulator;
     struct rksdmmc_gpio   power_n;  //PMU_EN  
+    struct rksdmmc_gpio   enable_n;
     struct rksdmmc_gpio   reset_n;  //SYSRET_B, DAIRST 
     struct rksdmmc_gpio   vddio;
     struct rksdmmc_gpio   bgf_int_b;
