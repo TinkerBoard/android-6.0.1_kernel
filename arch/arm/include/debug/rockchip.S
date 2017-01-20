@@ -25,7 +25,11 @@
 		cmp	\tmp, \rv
 		ldreq	\rp, = RK3036_UART2_PHYS
 		beq	10f
+#if (CONFIG_RK_DEBUG_UART == 1)
+		ldr	\rp, = RK3288_UART1_DBG_PHYS
+#else
 		ldr	\rp, = RK3288_UART_DBG_PHYS
+#endif
 10:		ldr	\rv, = 0xfec00000
 		mov	\tmp, \rp
 		bic	\tmp, \tmp, #0xff000000

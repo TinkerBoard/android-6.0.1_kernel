@@ -17,8 +17,8 @@
 
 	aliases {
 		serial0 = &uart_bt;
-		serial1 = &uart_bb;
-		serial2 = &uart_dbg;
+		serial1 = &uart_dbg;
+		serial2 = &uart_bb;
 		serial3 = &uart_gps;
 		serial4 = &uart_exp;
 		i2c0 = &i2c0;
@@ -454,7 +454,7 @@
 		status = "disabled";
 	};
 
-	uart_bb: serial@ff190000 {
+	uart_dbg: serial@ff190000 {
 		compatible = "rockchip,serial";
 		reg = <0xff190000 0x100>;
 		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
@@ -466,11 +466,12 @@
 		dmas = <&pdma1 3>, <&pdma1 4>;
 		#dma-cells = <2>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&uart1_xfer &uart1_cts &uart1_rts>;
+		//pinctrl-0 = <&uart1_xfer &uart1_cts &uart1_rts>;
+		pinctrl-0 = <&uart1_xfer>;
 		status = "disabled";
 	};
 
-	uart_dbg: serial@ff690000 {
+	uart_bb: serial@ff690000 {
 		compatible = "rockchip,serial";
 		reg = <0xff690000 0x100>;
 		interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
@@ -521,12 +522,10 @@
 
 	fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
-		rockchip,serial-id = <2>;
+		rockchip,serial-id = <1>;
 		rockchip,signal-irq = <106>;
 		rockchip,wake-irq = <0>;
-#ifdef CONFIG_ARM_TRUSTZONE
 		rockchip,irq-mode-enable = <1>;  /* If enable uart uses irq instead of fiq */
-#endif
 		status = "disabled";
 	};
 
@@ -637,7 +636,10 @@
 				<&clk_gates17 3>,/* pclk_sgrf */
 
 				/* UART */
-				<&clk_gates11 9>,/* pclk_uart2 */
+				<&clk_uart1>,
+				<&clk_gates11 9>,/* pclk_uart1 */
+				<&clk_uart2>,
+				<&clk_gates6 9>,/* pclk_uart2 */
 
 				/* 480M */
 				<&usbphy_480m>;
