@@ -312,6 +312,10 @@
 	};
 	*/
 };
+&uart_bb {
+        status = "okay";
+};
+
 &uart_bt {
         status = "okay";
         dma-names = "!tx", "!rx";
