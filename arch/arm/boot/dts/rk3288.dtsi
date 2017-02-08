@@ -466,7 +466,6 @@
 		dmas = <&pdma1 3>, <&pdma1 4>;
 		#dma-cells = <2>;
 		pinctrl-names = "default";
-		//pinctrl-0 = <&uart1_xfer &uart1_cts &uart1_rts>;
 		pinctrl-0 = <&uart1_xfer>;
 		status = "disabled";
 	};
