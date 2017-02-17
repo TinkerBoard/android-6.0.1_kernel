@@ -30,6 +30,10 @@
 #include "efuse.h"
 
 #define MHz	(1000 * 1000)
+#define SAFE_FREQ	(24 * 67 * MHz)
+#define ADJUST_FREQ	(24 * 63 * MHz)
+#define ADJUST_VOLT	(50000)
+
 static LIST_HEAD(rk_dvfs_tree);
 static DEFINE_MUTEX(rk_dvfs_mutex);
 static struct workqueue_struct *dvfs_wq;
@@ -44,6 +48,7 @@ struct regulator *vdd_gpu_regulator;
 static DEFINE_MUTEX(temp_limit_mutex);
 static u32 cpu_target_temp;
 static bool temp_limit_4k;
+unsigned long apll_safefreq = ULONG_MAX;
 
 static int dvfs_get_rate_range(struct dvfs_node *clk_dvfs_node);
 static void dvfs_temp_unlimit_4k(void);
@@ -1673,6 +1678,41 @@ static void adjust_table_by_leakage(struct dvfs_node *dvfs_node)
 	}
 }
 
+static void set_safety_freq(struct dvfs_node *dvfs_node)
+{
+	int i = 0;
+	int j = 0;
+	int chip_version;
+
+	if (strcmp(dvfs_node->name, "clk_core") != 0)
+		return;
+
+	chip_version = rockchip_chip_version();
+	pr_info("chip_version=0x%x\n", chip_version);
+	if ((chip_version & 0xf0) == 0xc0) {
+		apll_safefreq = ULONG_MAX;
+		return;
+	}
+	apll_safefreq = SAFE_FREQ;
+
+	for (i = 0; (dvfs_node->dvfs_table[i].frequency != CPUFREQ_TABLE_END);
+		     i++) {
+		if (dvfs_node->dvfs_table[i].frequency <= (SAFE_FREQ / 1000) &&
+		    dvfs_node->dvfs_table[i].frequency >= (ADJUST_FREQ / 1000))
+			dvfs_node->dvfs_table[i].index += ADJUST_VOLT;
+	}
+
+	for (i = 0; (dvfs_node->dvfs_table[i].frequency != CPUFREQ_TABLE_END);
+		     i++) {
+		if (dvfs_node->dvfs_table[i].frequency >= (SAFE_FREQ / 1000) &&
+		    j == 0)
+			j = i;
+		if (j != 0)
+			dvfs_node->dvfs_table[i].index =
+				dvfs_node->dvfs_table[j].index;
+	}
+}
+
 int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 {
 	struct cpufreq_frequency_table clk_fv;
@@ -1725,6 +1765,7 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 			adjust_table_by_leakage(clk_dvfs_node);
 		if (clk_dvfs_node->support_pvtm)
 			pvtm_set_dvfs_table(clk_dvfs_node);
+		set_safety_freq(clk_dvfs_node);
 		dvfs_table_round_volt(clk_dvfs_node);
 		clk_dvfs_node->set_freq = clk_dvfs_node_get_rate_kz(clk_dvfs_node->clk);
 		clk_dvfs_node->last_set_rate = clk_dvfs_node->set_freq*1000;

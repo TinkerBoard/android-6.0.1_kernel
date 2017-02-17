@@ -8,6 +8,8 @@
 #define MHZ			(1000UL * 1000UL)
 #define KHZ			(1000UL)
 
+extern unsigned long apll_safefreq;
+
 struct clk_ops_table {
 	unsigned int 		index;
 	const struct clk_ops	*clk_ops;

@@ -1664,8 +1664,11 @@ static int clk_pll_set_rate_3288_apll(struct clk_hw *hw, unsigned long rate,
 			temp_div);
 
 CHANGE_APLL:
-	ps = apll_get_best_set(rate, rk3288_apll_table);
-	clk_debug("apll will set rate %lu\n", ps->rate);
+	if (rate > apll_safefreq)
+		ps = apll_get_best_set(apll_safefreq, rk3288_apll_table);
+	else
+		ps = apll_get_best_set(rate, rk3288_apll_table);
+	clk_debug("apll will set rate %lu %lu\n", rate, ps->rate);
 	clk_debug("table con:%08x,%08x,%08x, sel:%08x,%08x\n",
 			ps->pllcon0, ps->pllcon1, ps->pllcon2,
 			ps->clksel0, ps->clksel1);
