@@ -49,6 +49,9 @@
 
 #include <linux/rockchip/dvfs.h>
 
+#define CPU_LIMIT_FREQ 1416000000
+#define GPU_LIMIT_FREQ 594000000
+
 /*---------------------------------------------------------------------------*/
 
 /* default duration to average of gpu_utilisation, in second.*/
@@ -59,9 +62,27 @@
 int kbase_platform_set_freq_of_clk_gpu(struct kbase_device *kbdev,
 				       unsigned long rate)
 {
+	int ret;
 	struct rk_context *platform = get_rk_context(kbdev);
+	struct dvfs_node *clk_core = platform->clk_core;
 
-	return dvfs_clk_set_rate(platform->clk_gpu, rate * MALI_KHZ);
+	if (clk_core && (rate * MALI_KHZ) >= GPU_LIMIT_FREQ) {
+		if (clk_core->max_limit_freq > CPU_LIMIT_FREQ) {
+			clk_core->max_limit_freq = CPU_LIMIT_FREQ;
+			dvfs_clk_set_rate(clk_core, clk_core->last_set_rate);
+		}
+	}
+
+	ret = dvfs_clk_set_rate(platform->clk_gpu, rate * MALI_KHZ);
+
+	if (clk_core && (rate * MALI_KHZ) < GPU_LIMIT_FREQ) {
+		if (clk_core->max_limit_freq != clk_core->max_rate) {
+			clk_core->max_limit_freq = clk_core->max_rate;
+			dvfs_clk_set_rate(clk_core, clk_core->last_set_rate);
+		}
+	}
+
+	return ret;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -159,6 +180,12 @@ static int kbase_platform_clk_init(struct kbase_device *kbdev)
 		return -ENOENT;
 	}
 	clk_enable_dvfs(platform->clk_gpu);
+
+	platform->clk_core = clk_get_dvfs_node("clk_core");
+	if (IS_ERR_OR_NULL(platform->clk_core)) {
+		D("fail to get clk_core");
+		platform->clk_core = NULL;
+	}
 
 	/* we don't turn on clk_gpu here. */
 

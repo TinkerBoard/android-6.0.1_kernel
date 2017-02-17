@@ -40,6 +40,7 @@ struct rk_context {
 
 	struct clk *pd_gpu;
 	struct dvfs_node *clk_gpu;
+	struct dvfs_node *clk_core;
 
 	struct rk_dvfs_t rk_dvfs;
 
