@@ -234,24 +234,21 @@
 		keep-power-in-suspend;
     	status = "disabled";
 };
-    
+
 &sdmmc {
-	clock-frequency = <50000000>;
-	clock-freq-min-max = <400000 50000000>;	            
-	    
+	clock-frequency = <150000000>;
+	clock-freq-min-max = <400000 150000000>;
 	supports-highspeed;
 	supports-sd;
 	supports-emmc;
 	broken-cd;
 	card-detect-delay = <200>;
-
 	ignore-pm-notify;
-        keep-power-in-suspend;
-	
-        vmmc-supply = <&rk808_ldo5_reg>;
+	keep-power-in-suspend;
+	vmmc-supply = <&rk808_ldo5_reg>;
 	status = "okay";
 };
-		
+
 &sdio {
 		status = "okay";
 		clock-frequency = <50000000>;
@@ -790,7 +787,7 @@
 			regulator-name= "vcc_sd";
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <3300000>;
-			regulator-always-on;
+		//	regulator-always-on;
 			regulator-boot-on;
 			regulator-initial-state = <3>;
 			regulator-state-mem {
