@@ -43,6 +43,7 @@ struct rockchip_efuse {
 	int (*get_temp)(int ch);
 	int efuse_version;
 	int process_version;
+	int chip_version;
 };
 
 static struct rockchip_efuse efuse;
@@ -270,6 +271,13 @@ static int __init rk3288_get_process_version(void)
 	return ret;
 }
 
+static int __init rk3288_get_chip_version(void)
+{
+	int ret = efuse_buf[5] & 0xf0;
+
+	return ret;
+}
+
 static int rk3288_get_leakage(int ch)
 {
 	if ((ch < 0) || (ch > 2))
@@ -335,6 +343,11 @@ int rockchip_efuse_version(void)
 int rockchip_process_version(void)
 {
 	return efuse.process_version;
+}
+
+int rockchip_chip_version(void)
+{
+	return efuse.chip_version;
 }
 
 int rockchip_get_leakage(int ch)
@@ -477,6 +490,7 @@ static void __init rk3288_efuse_init(void)
 			efuse.get_leakage = rk3288_get_leakage;
 		efuse.efuse_version = rk3288_get_efuse_version();
 		efuse.process_version = rk3288_get_process_version();
+		efuse.chip_version = rk3288_get_chip_version();
 		rockchip_set_cpu_version((efuse_buf[6] >> 4) & 3);
 		rk3288_set_system_serial();
 	} else {
