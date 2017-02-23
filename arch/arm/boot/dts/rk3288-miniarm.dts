@@ -435,7 +435,11 @@
 		reg = <0x1a>;
 		phone_det_level = <1>;
 	};
-	
+
+	m24c08@50 {
+		compatible = "at,24c08";
+		reg = <0x50>;
+	};
 };
 
 &i2c3 {
