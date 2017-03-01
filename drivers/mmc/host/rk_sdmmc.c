@@ -3606,7 +3606,35 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 			host->vmmc = NULL;
 		}
 	}
-    
+
+	if (mmc->restrict_caps & RESTRICT_CARD_TYPE_SD)
+		host->vmmcq = devm_regulator_get(mmc_dev(mmc), "vmmcq");
+	else
+		host->vmmcq = NULL;
+
+	if(host->vmmcq) {
+		ret = regulator_enable(host->vmmcq);
+		if(ret) {
+			dev_err(host->dev, "failed to enable regulator: %d\n", ret);
+			host->vmmcq = NULL;
+			goto err_setup_bus;
+		}
+		ret = regulator_disable(host->vmmcq);
+		if(ret) {
+			dev_err(host->dev, "failed to disable regulator: %d\n", ret);
+			goto err_setup_bus;
+		}
+		mdelay(30);
+		ret = regulator_enable(host->vmmcq);
+		if(ret) {
+			dev_err(host->dev, "failed to enable regulator: %d\n", ret);
+			goto err_setup_bus;
+		}
+	} else {
+		pr_info("%s: no vmmcq regulator found\n", mmc_hostname(mmc));
+		host->vmmcq = NULL;
+	}
+
         slot->wp_gpio = dw_mci_of_get_wp_gpio(host->dev, slot->id);
 	
         if (mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO)

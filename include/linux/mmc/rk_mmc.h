@@ -206,6 +206,7 @@ struct dw_mci {
 	bool	    irq_state;
 	u32                     svi_flags; /* Switch voltage interrupt flags */
 	struct regulator	*vmmc;	/* Power regulator */
+	struct regulator	*vmmcq;
 	unsigned long		irq_flags; /* IRQ flags */
 	int			irq;
 	u32         cmd_rto;     /* Cmd response timeout hold times */

@@ -246,6 +246,7 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	vmmc-supply = <&rk808_ldo5_reg>;
+	vmmcq-supply = <&vcc33_sd>;
 	status = "okay";
 };
 
@@ -787,7 +788,7 @@
 			regulator-name= "vcc_sd";
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <3300000>;
-		//	regulator-always-on;
+//			regulator-always-on;
 			regulator-boot-on;
 			regulator-initial-state = <3>;
 			regulator-state-mem {
@@ -854,9 +855,8 @@
 				regulator-state-disabled;
 			};
 		};*/
-		
+
 		vcc33_sd: regulator@12 {
-				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "vcc33_sd";
 				regulator-state-mem {
