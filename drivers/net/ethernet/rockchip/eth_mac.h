@@ -14,4 +14,5 @@
 
 int eth_mac_idb(u8 *eth_mac);
 int eth_mac_wifi(u8 *eth_mac);
+int eth_mac_eeprom(u8 *eth_mac);
 #endif /* _ETH_MAC_H_ */

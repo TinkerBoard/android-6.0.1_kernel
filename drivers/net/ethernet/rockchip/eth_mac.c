@@ -19,6 +19,7 @@
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include "eth_mac.h"
+#include <linux/i2c/at24.h>
 
 #if 1
 #define DBG(x...)   printk("eth_mac:" x)
@@ -66,6 +67,19 @@ int eth_mac_idb(u8 *eth_mac)
 		return -1;
 	printk("Read the Ethernet MAC address from IDB:");
 	for (i = 0; i < 5; i++)
+		printk("%2.2x:", eth_mac[i]);
+	printk("%2.2x\n", eth_mac[i]);
+
+	return 0;
+}
+
+int eth_mac_eeprom(u8 *eth_mac)
+{
+	int i;
+	memset(eth_mac, 0, 6);
+	printk("Read the Ethernet MAC address form EEPROM:");
+	at24_read_eeprom(eth_mac, 0, 6);
+	for(i=0; i<5; i++)
 		printk("%2.2x:", eth_mac[i]);
 	printk("%2.2x\n", eth_mac[i]);
 
