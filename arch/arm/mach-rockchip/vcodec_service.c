@@ -660,7 +660,7 @@ static void vpu_reset(struct vpu_subdev_data *data)
 	if (pservice->dev_id == VCODEC_DEVICE_ID_HEVC)
 		type = IDLE_REQ_HEVC;
 
-	pr_info("%s: resetting...", dev_name(pservice->dev));
+	pr_debug("%s: resetting...", dev_name(pservice->dev));
 
 #if defined(CONFIG_ARCH_RK29)
 	clk_disable(aclk_ddr_vepu);
@@ -695,12 +695,12 @@ static void vpu_reset(struct vpu_subdev_data *data)
 	pservice->reg_pproc = NULL;
 	pservice->reg_resev = NULL;
 
-	pr_info("for 3288/3368...");
+	pr_debug("for 3288/3368...");
 #ifdef CONFIG_RESET_CONTROLLER
 	if (pservice->rst_a && pservice->rst_h) {
 		if (rockchip_pmu_ops.set_idle_request)
 			rockchip_pmu_ops.set_idle_request(type, true);
-		pr_info("reset in\n");
+		pr_debug("reset in\n");
 		if (pservice->rst_v)
 			reset_control_assert(pservice->rst_v);
 		reset_control_assert(pservice->rst_a);
@@ -725,7 +725,7 @@ static void vpu_reset(struct vpu_subdev_data *data)
 	}
 #endif
 	atomic_set(&pservice->reset_request, 0);
-	pr_info("done\n");
+	pr_debug("done\n");
 }
 
 static void reg_deinit(struct vpu_subdev_data *data, struct vpu_reg *reg);
@@ -1194,7 +1194,7 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 	}
 
 	if (size > data->reg_size) {
-		pr_err("vpu reg size %u is larger than hw reg size %u\n",
+		pr_debug("vpu reg size %u is larger than hw reg size %u\n",
 		       size, data->reg_size);
 		extra_size = size - data->reg_size;
 		size = data->reg_size;
