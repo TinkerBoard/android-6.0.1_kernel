@@ -1128,7 +1128,7 @@ static struct rk808_board *rk808_parse_dt(struct i2c_client *i2c)
 #endif
 static void rk808_shutdown(void)
 {
-	int ret,i,val;
+	int i,val;
 	u16 reg = 0;
 	struct rk808 *rk808 = g_rk808;
 	
@@ -1141,8 +1141,8 @@ static void rk808_shutdown(void)
 	printk("%s,line=%d dc[%d]= %d\n", __func__,__LINE__,(i+1),val);
 	}
 	/*****************************************************/
-	ret = rk808_set_bits(rk808, RK808_INT_STS_MSK_REG1,(0x3<<5),(0x3<<5)); //close rtc int when power off
-	ret = rk808_clear_bits(rk808, RK808_RTC_INT_REG,(0x3<<2)); //close rtc int when power off
+	//ret = rk808_set_bits(rk808, RK808_INT_STS_MSK_REG1,(0x3<<5),(0x3<<5)); //close rtc int when power off
+	//ret = rk808_clear_bits(rk808, RK808_RTC_INT_REG,(0x3<<2)); //close rtc int when power off
 	mutex_lock(&rk808->io_lock);
 	mdelay(100);
 }
