@@ -1710,6 +1710,10 @@ static const struct of_device_id of_rk_mipi_dsi_match[] = {
 	{ /* Sentinel */ }
 };
 
+#ifdef CONFIG_TINKER_MCU
+extern int tinker_mcu_is_connected(void);
+#endif
+
 static int rk32_mipi_dsi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -1722,6 +1726,14 @@ static int rk32_mipi_dsi_probe(struct platform_device *pdev)
 	const struct dsi_type *data;
 	const struct of_device_id *of_id =
 			of_match_device(of_rk_mipi_dsi_match, &pdev->dev);
+
+#ifdef CONFIG_TINKER_MCU
+	if(!tinker_mcu_is_connected()) {
+		pr_info("panel doesn't be connected\n");
+		return -1;
+	}
+#endif
+
 	if (!of_id) {
 		dev_err(&pdev->dev, "failed to match device\n");
 		return -ENODEV;

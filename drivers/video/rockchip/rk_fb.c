@@ -523,6 +523,10 @@ int rk_fb_video_mode_from_timing(const struct display_timing *dt,
 	return 0;
 }
 
+#ifdef CONFIG_TINKER_MCU
+extern int tinker_mcu_is_connected(void);
+#endif
+
 int rk_fb_prase_timing_dt(struct device_node *np, struct rk_screen *screen)
 {
 	struct display_timings *disp_timing;
@@ -534,6 +538,15 @@ int rk_fb_prase_timing_dt(struct device_node *np, struct rk_screen *screen)
 		return -EINVAL;
 	}
 	dt = display_timings_get(disp_timing, disp_timing->native_mode);
+
+#ifdef CONFIG_TINKER_MCU
+	if(!tinker_mcu_is_connected()) {
+		pr_info("panel doesn't be connected\n");
+		//Change display config for HDMI
+		dt = display_timings_get(disp_timing, 1);
+	}
+#endif
+
 	rk_fb_video_mode_from_timing(dt, screen);
 
 	return 0;

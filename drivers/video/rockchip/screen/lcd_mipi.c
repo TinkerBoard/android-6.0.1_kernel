@@ -163,6 +163,11 @@ static void rk_mipi_screen_cmd_init(struct mipi_screen *screen)
 #endif
 }
 
+#ifdef CONFIG_TINKER_MCU
+extern void tinker_mcu_screen_power_up(void);
+extern int tinker_mcu_set_bright(int bright);
+#endif
+
 int rk_mipi_screen(void)
 {
 	u8 dcs[16] = {0}, rk_dsi_num;
@@ -219,6 +224,11 @@ int rk_mipi_screen(void)
 			dsi_enable_hs_clk(1, 1);
 		}
 
+#ifdef CONFIG_TINKER_MCU
+		//enable mcu power
+		tinker_mcu_screen_power_up();
+#endif
+
 		dsi_enable_video_mode(0, 0);
 		if (rk_dsi_num == 2) {
 			dsi_enable_video_mode(1, 0);
@@ -240,6 +250,11 @@ int rk_mipi_screen(void)
 		if (rk_dsi_num == 2) {
 			dsi_enable_video_mode(1, 1);
 		}
+
+#ifdef CONFIG_TINKER_MCU
+		//enable backlight
+		tinker_mcu_set_bright(0xFF);
+#endif
 	}
 
 	MIPI_SCREEN_DBG("++++++++++++++++%s:%d\n", __func__, __LINE__);
@@ -259,6 +274,10 @@ int rk_mipi_screen_standby(u8 enable)
 			return -1;
 
 	if (enable) {
+#ifdef CONFIG_TINKER_MCU
+		//disable backlight
+		tinker_mcu_set_bright(0x00);
+#endif
 		/* below is changeable */
 		dcs[0] = LPDT;
 		dcs[1] = DTYPE_DCS_SWRITE_0P;
