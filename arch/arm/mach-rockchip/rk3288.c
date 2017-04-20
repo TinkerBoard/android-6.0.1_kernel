@@ -23,6 +23,7 @@
 #include <linux/kernel.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
+#include <linux/i2c.h>
 #include <linux/rockchip/common.h>
 #include <linux/rockchip/cpu.h>
 #include <linux/rockchip/cpu_axi.h>
@@ -60,6 +61,12 @@
 #define RK3288_IMEM_VIRT (RK_BOOTRAM_VIRT + SZ_32K)
 #define RK3288_HDMI_VIRT (RK3288_IMEM_VIRT + SZ_4K)
 #define RK3288_TIMER7_VIRT (RK_TIMER_VIRT + 0x20)
+
+static struct i2c_board_info __initdata i2c_devices_tinker_mcu[] = {
+	{
+		I2C_BOARD_INFO("tinker_mcu", 0x45),
+	},
+};
 
 static struct map_desc rk3288_io_desc[] __initdata = {
 	RK3288_DEVICE(CRU),
@@ -449,6 +456,8 @@ static void __init rk3288_dt_init_timer(void)
 	of_clk_init(NULL);
 	clocksource_of_init();
 	of_dvfs_init();
+
+	i2c_register_board_info(3, i2c_devices_tinker_mcu, ARRAY_SIZE(i2c_devices_tinker_mcu));
 }
 
 static void __init rk3288_reserve(void)
