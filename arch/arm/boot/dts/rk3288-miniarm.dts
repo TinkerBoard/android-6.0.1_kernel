@@ -146,6 +146,25 @@
 		rockchip,remote_wakeup;
 		rockchip,usb_irq_wakeup;
 	};
+
+        gpio-leds {
+                compatible = "gpio-leds";
+
+                pwr-led {
+                        gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+                        linux,default-trigger = "default-on";
+                };
+
+                act-led {
+                        gpios=<&gpio1 24 GPIO_ACTIVE_HIGH>;
+                        linux,default-trigger="mmc0";
+                };
+
+                led1-led {
+                        gpios=<&gpio1 25 GPIO_ACTIVE_HIGH>;
+                        linux,default-trigger="default-off";
+                };
+        };
 };
 
 &usb1	{
