@@ -23,6 +23,7 @@
 #include <linux/module.h>
 #include <linux/workqueue.h>
 #include <linux/string.h>
+#include <linux/reboot.h>
 #include "tinker_mcu.h"
 
 #define BL_DEBUG 0
@@ -260,13 +261,25 @@ static struct i2c_driver tinker_mcu_driver = {
 	.id_table = tinker_mcu_id,
 };
 
+static int bl_reboot_notifier_call(struct notifier_block *self, unsigned long event, void *data)
+{
+	tinker_mcu_set_bright(0);
+	return NOTIFY_OK;
+}
+
+static struct notifier_block bl_reboot_notifier = {
+	.notifier_call = bl_reboot_notifier_call,
+};
+
 static int __init tinker_mcu_init(void)
 {
+	register_reboot_notifier(&bl_reboot_notifier);
 	return i2c_add_driver(&tinker_mcu_driver);
 }
 
 static void __exit tinker_mcu_exit(void)
 {
+	unregister_reboot_notifier(&bl_reboot_notifier);
 	i2c_del_driver(&tinker_mcu_driver);
 }
 
