@@ -551,7 +551,6 @@
 &hdmi {
 	status = "okay";
 	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC0>;
-	rockchip,defaultmode = <16>;
 };
 
 &adc {
