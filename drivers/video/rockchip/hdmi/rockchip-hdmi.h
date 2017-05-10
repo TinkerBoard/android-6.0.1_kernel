@@ -479,7 +479,7 @@ struct hdmi {
 #define HDMI_HDCP_AUTH_2ND		(HDMI_IRQ_SRC		| 12)
 
 #define HDMI_DEFAULT_SCALE		95
-#define HDMI_AUTO_CONFIG		false
+#define HDMI_AUTO_CONFIG		true
 
 /* HDMI default vide mode */
 #define HDMI_VIDEO_DEFAULT_MODE			HDMI_1280X720P_60HZ
