@@ -885,7 +885,6 @@ static int _pll_clk_set_rate_3188plus(struct pll_clk_set *clk_set,
 	struct clk_pll *pll = to_clk_pll(hw);
 	unsigned long flags = 0;
 
-
 	clk_debug("%s start!\n", __func__);
 
 	if(pll->lock)
@@ -897,11 +896,17 @@ static int _pll_clk_set_rate_3188plus(struct pll_clk_set *clk_set,
 	//enter rest
 	cru_writel(_RK3188PLUS_PLL_RESET_SET(1), pll->reg + RK3188_PLL_CON(3));
 
+	//power down
+	cru_writel(_RK3188PLUS_PLL_POWERDOWN_SET(1), pll->reg + RK3188_PLL_CON(3));
+
 	cru_writel(clk_set->pllcon0, pll->reg + RK3188_PLL_CON(0));
 	cru_writel(clk_set->pllcon1, pll->reg + RK3188_PLL_CON(1));
 	cru_writel(clk_set->pllcon2, pll->reg + RK3188_PLL_CON(2));
 
 	udelay(5);
+
+	//power up
+	cru_writel(_RK3188PLUS_PLL_POWERDOWN_SET(0), pll->reg + RK3188_PLL_CON(3));
 
 	//return from rest
 	cru_writel(_RK3188PLUS_PLL_RESET_SET(0), pll->reg + RK3188_PLL_CON(3));
