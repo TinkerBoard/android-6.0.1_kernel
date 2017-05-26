@@ -754,7 +754,6 @@ struct rk_lcdc_driver {
 	struct rk_lcdc_bcsh bcsh;
 	int *hwc_lut;
 	int uboot_logo;
-	int config_done_flag;
 	int bcsh_init_status;
 	bool cabc_pwm_pol;
 	u8  reserved_fb;

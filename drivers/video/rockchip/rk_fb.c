@@ -924,8 +924,6 @@ void rk_fb_platform_set_sysmmu(struct device *sysmmu, struct device *dev)
 }
 #endif
 
-static int rk_fb_alloc_buffer(struct fb_info *fbi);
-
 static int rk_fb_open(struct fb_info *info, int user)
 {
 	struct rk_fb_par *fb_par = (struct rk_fb_par *)info->par;
@@ -935,13 +933,9 @@ static int rk_fb_open(struct fb_info *info, int user)
 	win_id = dev_drv->ops->fb_get_win_id(dev_drv, info->fix.id);
 	fb_par->state++;
 	/* if this win aready opened ,no need to reopen */
-	if (dev_drv->win[win_id]->state) {
-		if (dev_drv->prop == EXTEND) {
-			rk_fb_alloc_buffer(info);
-			printk("debug>>>>%s[%d]\n", __func__, __LINE__);
-		}
+	if (dev_drv->win[win_id]->state)
 		return 0;
-	} else
+	else
 		dev_drv->ops->open(dev_drv, win_id, 1);
 	return 0;
 }
@@ -2984,7 +2978,6 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		if (dev_drv->uboot_logo)
 			dev_drv->uboot_logo = 0;
 
-		dev_drv->config_done_flag = 1;
 		break;
 	default:
 		dev_drv->ops->ioctl(dev_drv, cmd, arg, win_id);
@@ -3190,7 +3183,6 @@ static ssize_t rk_fb_write(struct fb_info *info, const char __user *buf,
 	return (cnt) ? cnt : err;
 }
 
-static int g_xvir, g_bits, g_len, g_xact, g_yact;
 static int rk_fb_set_par(struct fb_info *info)
 {
 	struct fb_var_screeninfo *var = &info->var;
@@ -3240,7 +3232,6 @@ static int rk_fb_set_par(struct fb_info *info)
 	win->colorspace = CSC_FORMAT(data_format);
 	data_format &= ~CSC_MASK;
 	fb_data_fmt = rk_fb_data_fmt(data_format, var->bits_per_pixel);
-
 	if (IS_FBDC_FMT(fb_data_fmt)) {
 		win->area[0].fbdc_en = 1;
 		win->area[0].fbdc_cor_en = 1;
@@ -3695,7 +3686,7 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 						(dev_drv->cur_screen->xsize << 8) +
 						(dev_drv->cur_screen->ysize << 20);
 				}
-			/*	if (dev_drv->uboot_logo && win->state) {
+				if (dev_drv->uboot_logo && win->state) {
 					if (win->area[0].xpos ||
 					    win->area[0].ypos) {
 						win->area[0].xpos =
@@ -3710,15 +3701,7 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 						win->area[0].ysize =
 							screen->mode.yres;
 					}
-					dev_drv->ops->set_par(dev_drv, i);*/
-				if (!dev_drv->config_done_flag && !load_screen) {
-					win->state = 1;
-					info->var.grayscale &= 0xff;
-					info->var.grayscale |=
-					(dev_drv->cur_screen->mode.xres << 8) +
-					(dev_drv->cur_screen->mode.yres << 20);
-					info->fbops->fb_set_par(info);
-					info->fbops->fb_pan_display(&info->var, info);
+					dev_drv->ops->set_par(dev_drv, i);
 					dev_drv->ops->cfg_done(dev_drv);
 				} else if (!dev_drv->win[win_id]->state) {
 					dev_drv->ops->open(dev_drv, win_id, 1);
@@ -3868,7 +3851,7 @@ static int rk_fb_alloc_buffer_by_ion(struct fb_info *fbi,
 		goto err_share_dma_buf;
 	}
 	win->area[0].ion_hdl = handle;
-	//if (dev_drv->prop == PRMRY)
+	if (dev_drv->prop == PRMRY)
 		fbi->screen_base = ion_map_kernel(rk_fb->ion_client, handle);
 	if (dev_drv->iommu_enabled && dev_drv->mmu_dev)
 		ret = ion_map_iommu(dev_drv->dev, rk_fb->ion_client, handle,
@@ -3890,29 +3873,6 @@ err_share_dma_buf:
 	return -ENOMEM;
 }
 #endif
-
-static int rk_fb_extend_alloc_buffer(struct fb_info *fbi)
-{
-	struct rk_fb_par *fb_par = (struct rk_fb_par *)fbi->par;
-	struct rk_lcdc_driver *dev_drv = fb_par->lcdc_drv;
-	struct rk_lcdc_win *win = NULL;
-	unsigned long fb_mem_size;
-
-	win = dev_drv->win[0];
-	fb_mem_size = get_fb_size(dev_drv->reserved_fb);
-	if (rk_fb_alloc_buffer_by_ion(fbi, win, fb_mem_size) < 0)
-		return -ENOMEM;
-	fbi->screen_size = fbi->fix.smem_len;
-	fb_par->fb_phy_base = fbi->fix.smem_start;
-	fb_par->fb_virt_base = fbi->screen_base;
-	fb_par->fb_size = fbi->fix.smem_len;
-
-	pr_info("extend %s:phy:%lx>>vir:%p>>len:0x%x\n", fbi->fix.id,
-		fbi->fix.smem_start, fbi->screen_base,
-		fbi->fix.smem_len);
-
-	return 0;
-}
 
 static int rk_fb_alloc_buffer(struct fb_info *fbi)
 {
@@ -4327,32 +4287,25 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 			int ymirror = 0;
 			struct page **pages;
 			char *vaddr;
-			int logo_len, i = 0;
+			int i = 0;
 
 			if (dev_drv->ops->get_dspbuf_info)
 				dev_drv->ops->get_dspbuf_info(dev_drv, &xact,
 					&yact, &format,	&dsp_addr, &ymirror);
-			logo_len = rk_fb_pixel_width(format) * xact * yact >> 3;
-			g_len = logo_len;
 			nr_pages = size >> PAGE_SHIFT;
 			pages = kzalloc(sizeof(struct page) * nr_pages,
 					GFP_KERNEL);
-			if (!pages)
-				return -ENOMEM;
 			while (i < nr_pages) {
 				pages[i] = phys_to_page(start);
 				start += PAGE_SIZE;
 				i++;
 			}
-			g_xact = xact;
-			g_yact = yact;
 			vaddr = vmap(pages, nr_pages, VM_MAP,
 				     pgprot_writecombine(PAGE_KERNEL));
 			if (!vaddr) {
 				pr_err("failed to vmap phy addr 0x%lx\n",
 				       (long)(uboot_logo_base +
 				       uboot_logo_offset));
-				kfree(pages);
 				return -1;
 			}
 
@@ -4370,8 +4323,6 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 				       xact, yact, width, height);
 				return 0;
 			}
-			g_xvir = width;
-			g_bits = bits;
 			xvir = ALIGN(width * bits, 1 << 5) >> 5;
 			ymirror = 0;
 			local_irq_save(flags);
@@ -4419,8 +4370,6 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 			nr_pages = PAGE_ALIGN(logo_len + align) >> PAGE_SHIFT;
 			pages = kzalloc(sizeof(struct page) * nr_pages,
 					GFP_KERNEL);
-			if (!pages)
-				return -ENOMEM;
 			while (i < nr_pages) {
 				pages[i] = phys_to_page(start);
 				start += PAGE_SIZE;
@@ -4431,7 +4380,6 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 			if (!vaddr) {
 				pr_err("failed to vmap phy addr 0x%x\n",
 				       start);
-				kfree(pages);
 				return -1;
 			}
 
@@ -4482,33 +4430,15 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 #endif
 	} else {
 		struct fb_info *extend_fbi = rk_fb->fb[dev_drv->fb_index_base];
-		struct fb_info *main_fbi = rk_fb->fb[0];
 
 		extend_fbi->var.pixclock = rk_fb->fb[0]->var.pixclock;
-		extend_fbi->fbops->fb_open(extend_fbi, 0);
-		fb_videomode_to_var(&extend_fbi->var, &dev_drv->cur_screen->mode);
-
+		extend_fbi->fbops->fb_open(extend_fbi, 1);
 		if (dev_drv->iommu_enabled) {
 			if (dev_drv->mmu_dev)
 				rockchip_iovmm_set_fault_handler(dev_drv->dev,
 								 rk_fb_sysmmu_fault_handler);
 		}
-
-		rk_fb_extend_alloc_buffer(extend_fbi);
-		memcpy(extend_fbi->screen_base, main_fbi->screen_base, g_len);
-		extend_fbi->var.xres_virtual = g_xvir;
-		extend_fbi->var.bits_per_pixel = g_bits;
-		extend_fbi->var.xres = g_xact;
-		extend_fbi->var.yres = g_yact;
-		if (g_bits == 16)
-			extend_fbi->var.nonstd = HAL_PIXEL_FORMAT_RGB_565;
-		else
-			extend_fbi->var.nonstd = HAL_PIXEL_FORMAT_BGR_888;
-
-		if (dev_drv->iommu_enabled) {
-			if (dev_drv->ops->mmu_en)
-				dev_drv->ops->mmu_en(dev_drv);
-		}
+		rk_fb_alloc_buffer(extend_fbi);
 	}
 #endif
 	return 0;
