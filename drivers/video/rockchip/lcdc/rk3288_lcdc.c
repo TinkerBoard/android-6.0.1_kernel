@@ -1430,6 +1430,7 @@ static int rk3288_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 	}
 	spin_unlock(&lcdc_dev->reg_lock);
 	rk3288_lcdc_set_dclk(dev_drv, 1);
+
 	if (screen->type != SCREEN_HDMI && dev_drv->trsm_ops &&
 	    dev_drv->trsm_ops->enable)
 		dev_drv->trsm_ops->enable();
@@ -1597,7 +1598,7 @@ static int rk3288_lcdc_open(struct rk_lcdc_driver *dev_drv, int win_id,
 		/*if (dev_drv->iommu_enabled)
 		   rk3368_lcdc_mmu_en(dev_drv); */
 		if ((support_uboot_display()&&(lcdc_dev->prop == PRMRY))) {
-			rk3288_lcdc_set_dclk(dev_drv, 0);
+			rk3288_lcdc_set_dclk(dev_drv, 1);
 			/* rk3288_lcdc_enable_irq(dev_drv); */
 		} else {
 			rk3288_load_screen(dev_drv, 1);
@@ -2257,6 +2258,11 @@ static int win0_set_par(struct lcdc_device *lcdc_dev,
 			swap_rb = 0;
 			win->fmt_10 = 0;
 			break;
+		case BGR565:
+			fmt_cfg = 2;
+			swap_rb = 1;
+			win->fmt_10 = 0;
+			break;
 		case YUV422:
 			fmt_cfg = 5;
 			swap_rb = 0;
@@ -2353,6 +2359,11 @@ static int win1_set_par(struct lcdc_device *lcdc_dev,
 			swap_rb = 0;
 			win->fmt_10 = 0;
 			break;
+		case BGR565:
+			fmt_cfg = 2;
+			swap_rb = 1;
+			win->fmt_10 = 0;
+			break;
 		case YUV422:
 			fmt_cfg = 5;
 			swap_rb = 0;
@@ -2442,6 +2453,10 @@ static int win2_set_par(struct lcdc_device *lcdc_dev,
 				fmt_cfg = 2;
 				swap_rb = 0;
 				break;
+			case BGR565:
+				fmt_cfg = 2;
+				swap_rb = 1;
+				break;
 			default:
 				dev_err(lcdc_dev->driver.dev, 
 					"%s:un supported format!\n",
@@ -2508,6 +2523,10 @@ static int win3_set_par(struct lcdc_device *lcdc_dev,
 			case RGB565:
 				fmt_cfg = 2;
 				swap_rb = 0;
+				break;
+			case BGR565:
+				fmt_cfg = 2;
+				swap_rb = 1;
 				break;
 			default:
 				dev_err(lcdc_dev->driver.dev, 
