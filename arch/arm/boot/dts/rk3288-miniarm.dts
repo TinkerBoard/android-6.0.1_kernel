@@ -926,3 +926,10 @@
 &sdmmc0_vdd_domain{
 	regulator-name = "vcc_sd";			
 	};
+&isp {
+ status = "okay";
+ };
+&vpu_mmu {
+        status = "okay";
+	};
+
