@@ -251,7 +251,7 @@
 
         ignore-pm-notify;
 		keep-power-in-suspend;
-    	status = "disabled";
+    	status = "okay";
 };
 
 &sdmmc {
