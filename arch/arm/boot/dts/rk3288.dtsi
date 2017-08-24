@@ -1352,7 +1352,7 @@
 		interrupt-names = "hevc_mmu";
 	};
 
-	vpu_mmu:ff9a0000 {
+	vpu_mmu: vpu_mmu {
 		dbgname = "vpu";
 		compatible = "rockchip,vpu_mmu";
 		reg = <0xff9a0800 0x100>;
