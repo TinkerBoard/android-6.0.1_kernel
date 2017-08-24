@@ -1117,7 +1117,7 @@
 			/* CMA HEAP */
 			compatible = "rockchip,ion-heap";
 			rockchip,ion_heap = <4>;
-			reg = <0x00000000 0x28000000>; /* 640MB */
+			reg = <0x00000000 0x10000000>; /* 250MB */
 		};
 		rockchip,ion-heap@0 {
 			 /* VMALLOC HEAP */
