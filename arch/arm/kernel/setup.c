@@ -98,6 +98,8 @@ EXPORT_SYMBOL(system_serial_high);
 unsigned int elf_hwcap __read_mostly;
 EXPORT_SYMBOL(elf_hwcap);
 
+int asus_ram_id;
+EXPORT_SYMBOL(asus_ram_id);
 
 #ifdef MULTI_CPU
 struct processor processor __read_mostly;
@@ -816,6 +818,17 @@ void __init setup_arch(char **cmdline_p)
 	/* populate cmd_line too for later use, preserving boot_command_line */
 	strlcpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);
 	*cmdline_p = cmd_line;
+
+    if(strstr(cmd_line,"asus.ramid=1")==NULL)
+    {
+        asus_ram_id = 0;
+    }
+    else
+    {
+        asus_ram_id = 1;
+    }
+
+    pr_info("%s - asus_ram_id = %d \n",__func__,asus_ram_id);
 
 	parse_early_param();
 

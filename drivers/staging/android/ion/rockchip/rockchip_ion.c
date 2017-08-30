@@ -50,6 +50,8 @@ extern struct ion_handle *ion_handle_get_by_id(struct ion_client *client,
  						int id);
 extern int ion_handle_put(struct ion_handle *handle);
 
+extern int asus_ram_id;
+
 #define ION_CMA_HEAP_NAME		"cma"
 #define ION_IOMMU_HEAP_NAME		"iommu"
 #define ION_VMALLOC_HEAP_NAME		"vmalloc"
@@ -350,8 +352,18 @@ int __init rockchip_ion_find_heap(unsigned long node, const char *uname,
 	prop = of_get_flat_dt_prop(node, "reg", &len);
 	if (prop && (len >= 2*sizeof(__be32))) {
 		heap->base = be32_to_cpu(prop[0]);
-		heap->size = be32_to_cpu(prop[1]);
-		if (len==3*sizeof(__be32))
+
+        if(!strcmp(heap->name,"cma") && asus_ram_id == 1)
+        {
+                pr_info("%s :  Because HW is 1G ram , it'll reduce CMA size \n",__func__);
+                heap->size = 0x10000000;
+        }
+        else
+        {
+            heap->size = be32_to_cpu(prop[1]);
+        }
+
+        if (len==3*sizeof(__be32))
 			heap->align = be32_to_cpu(prop[2]);
 	}
 
