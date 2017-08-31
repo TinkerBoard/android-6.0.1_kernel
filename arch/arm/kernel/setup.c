@@ -797,6 +797,7 @@ void __init hyp_mode_check(void)
 void __init setup_arch(char **cmdline_p)
 {
 	struct machine_desc *mdesc;
+    char* pramid;
 
 	setup_processor();
 	mdesc = setup_machine_fdt(__atags_pointer);
@@ -819,13 +820,25 @@ void __init setup_arch(char **cmdline_p)
 	strlcpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);
 	*cmdline_p = cmd_line;
 
-    if(strstr(cmd_line,"asus.ramid=1")==NULL)
+    pramid = strstr(cmd_line,"asus.ramid");
+
+    if( pramid == NULL)
     {
         asus_ram_id = 0;
     }
     else
     {
-        asus_ram_id = 1;
+        switch(*(pramid+11))
+        {
+            case '1':
+                asus_ram_id = 1;
+                break;
+            case '2':
+                asus_ram_id = 2;
+                break;
+            default:
+                asus_ram_id = 0;
+        }
     }
 
     pr_info("%s - asus_ram_id = %d \n",__func__,asus_ram_id);
