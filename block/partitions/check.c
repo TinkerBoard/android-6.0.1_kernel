@@ -167,10 +167,10 @@ check_partition(struct gendisk *hd, struct block_device *bdev)
 	i = res = err = 0;
 
 	/* Rockchip partition table ONLY used by eMMC disk */
-	#ifdef CONFIG_RK_PARTITION
-	if ((179 == MAJOR(bdev->bd_dev) && (1 == hd->emmc_disk)))
-		i = sizeof(check_part) / sizeof(struct parsed_partitions *) - 2;
-	#endif
+	//#ifdef CONFIG_RK_PARTITION
+	//if ((179 == MAJOR(bdev->bd_dev) && (1 == hd->emmc_disk)))
+	//	i = sizeof(check_part) / sizeof(struct parsed_partitions *) - 2;
+	//#endif
 
 	while (!res && check_part[i]) {
 		memset(state->parts, 0, state->limit * sizeof(state->parts[0]));

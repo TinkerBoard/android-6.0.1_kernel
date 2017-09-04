@@ -259,7 +259,6 @@
 	clock-freq-min-max = <400000 150000000>;
 	supports-highspeed;
 	supports-sd;
-	supports-emmc;
 	broken-cd;
 	card-detect-delay = <200>;
 	ignore-pm-notify;

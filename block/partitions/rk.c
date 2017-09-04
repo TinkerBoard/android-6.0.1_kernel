@@ -301,8 +301,8 @@ int rkpart_partition(struct parsed_partitions *state)
 		return 0;
 
         /* ONLY be used by eMMC-disk */
-        if (1 != state->bdev->bd_disk->emmc_disk)
-                return 0;
+    //    if (1 != state->bdev->bd_disk->emmc_disk)
+    //            return 0;
 
         /* Fixme: parameter should be coherence with part table */
 	cmdline = strstr(saved_command_line, "mtdparts=") + 9;
