@@ -162,3 +162,6 @@ obj-y				+= headset_observe/
 obj-$(CONFIG_CORESIGHT)		+= coresight/
 obj-$(CONFIG_ANDROID)		+= android/
 obj-$(CONFIG_RK_SFC)		+= rksfc/
+
+# Asus project id driver
+obj-y				+= board-info/
