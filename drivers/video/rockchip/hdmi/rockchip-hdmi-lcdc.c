@@ -771,6 +771,28 @@ static const struct hdmi_video_timing hdmi_mode[] = {
 		.pixelrepeat = 1,
 		.interface = OUT_P888,
 	},
+	{
+		.mode = {
+			.name = "1024x600p@60Hz",
+			.refresh = 60,
+			.xres = 1024,
+			.yres = 600,
+			.pixclock = 32000000,
+			.left_margin = 40,
+			.right_margin = 40,
+			.upper_margin = 13,
+			.lower_margin = 29,
+			.hsync_len = 48,
+			.vsync_len = 3,
+			.sync = FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+			.vmode = 0,
+			.flag = 0,
+		},
+		.vic = HDMI_VIDEO_DMT | 10,
+		.vic_2nd = 0,
+		.pixelrepeat = 1,
+		.interface = OUT_P888,
+	},
 };
 
 static int hdmi_set_info(struct rk_screen *screen, struct hdmi *hdmi)
@@ -882,7 +904,7 @@ static int hdmi_set_info(struct rk_screen *screen, struct hdmi *hdmi)
 int hdmi_find_best_mode(struct hdmi *hdmi, int vic)
 {
 	struct list_head *pos, *head = &hdmi->edid.modelist;
-	struct display_modelist *modelist;
+	struct display_modelist *modelist=NULL;
 	int found = 0;
 
 	if (vic) {
@@ -896,6 +918,7 @@ int hdmi_find_best_mode(struct hdmi *hdmi, int vic)
 			}
 		}
 	}
+
 	if ((!vic || !found) && head->next != head) {
 		/* If parse edid error, we select default mode; */
 		if (hdmi->edid.specs &&
