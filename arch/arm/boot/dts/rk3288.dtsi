@@ -808,7 +808,7 @@
 		rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC0>;
 		rockchip,hdmi_audio_source = <0>;
 		rockchip,hdcp_enable = <0>;
-		rockchip,cec_enable = <0>;
+		rockchip,cec_enable = <1>;
 		status = "disabled";
 	};
 
