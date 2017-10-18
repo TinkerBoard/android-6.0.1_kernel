@@ -29,6 +29,8 @@
 
 #include "rk_sdmmc_dbg.h"
 
+#include <dt-bindings/gpio/gpio.h>
+
 static struct dw_mci_rockchip_compatible {
 	char				*compatible;
 	enum dw_mci_rockchip_type		ctrl_type;
@@ -66,6 +68,19 @@ static int dw_mci_rockchip_priv_init(struct dw_mci *host)
 {
 	struct dw_mci_rockchip_priv_data *priv;
 	int idx;
+	int gpio;
+	enum of_gpio_flags flags;
+
+	gpio = of_get_named_gpio_flags(host->dev->of_node, "maskrom_gpio", 0, &flags);
+
+	if (gpio_is_valid(gpio)) {
+		if(!gpio_request(gpio, "maskrom_gpio")) {
+			gpio_direction_output(gpio, (flags==GPIO_ACTIVE_HIGH)?1:0);
+			gpio_free(gpio);
+			mdelay(10);
+			dev_info(host->dev, "set maskrom gpio to enable emmc\n");
+		}
+	}
 
 	priv = devm_kzalloc(host->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
