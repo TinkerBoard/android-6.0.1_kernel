@@ -18,20 +18,39 @@
 #include <linux/device.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
+#include <linux/gpio.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
+#include <sound/jack.h>
 
 #include "card_info.h"
 #include "rk_pcm.h"
 #include "rk_i2s.h"
+
+int gpio_hp_det = -ENOENT;
+int gpio_hp_det_invert = -ENOENT;
+static struct snd_soc_jack hp_jack;
+static struct snd_soc_jack_pin hp_jack_pins[] = {
+	{
+		.pin = "Headphones",
+		.mask = SND_JACK_HEADPHONE,
+	},
+};
+static struct snd_soc_jack_gpio hp_jack_gpio = {
+	.name = "Headphone detection",
+	.report = SND_JACK_HEADPHONE,
+	.debounce_time = 150,
+};
 
 static int hdmi_i2s_hifi_hw_params(struct snd_pcm_substream *substream,
 				   struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+
 	unsigned int pll_out = 0, dai_fmt = rtd->dai_link->dai_fmt;
 	int div_bclk, div_mclk;
 	int ret;
@@ -80,6 +99,16 @@ static int hdmi_i2s_hifi_hw_params(struct snd_pcm_substream *substream,
 	pr_debug("%s: %d: div_bclk: %d, div_mclk: %d\n",
 		 __func__, __LINE__, div_bclk, div_mclk);
 
+	if (gpio_is_valid(gpio_hp_det)) {
+		snd_soc_jack_new(codec_dai->codec, "Headphones",
+				SND_JACK_HEADPHONE,
+				&hp_jack);
+		hp_jack_gpio.gpio = gpio_hp_det;
+		hp_jack_gpio.invert = gpio_hp_det_invert;
+		snd_soc_jack_add_pins(&hp_jack, ARRAY_SIZE(hp_jack_pins), hp_jack_pins);
+		snd_soc_jack_add_gpios(&hp_jack, 1, &hp_jack_gpio);
+	}
+
 	return 0;
 }
 
@@ -106,6 +135,8 @@ static int rockchip_hdmi_i2s_audio_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct snd_soc_card *card = &rockchip_hdmi_i2s_snd_card;
+	struct device_node *node = pdev->dev.of_node;
+	enum of_gpio_flags flags;
 
 	card->dev = &pdev->dev;
 
@@ -115,6 +146,10 @@ static int rockchip_hdmi_i2s_audio_probe(struct platform_device *pdev)
 		       __func__, ret);
 		return ret;
 	}
+
+	gpio_hp_det = of_get_named_gpio_flags(node,
+			"rockchip-hdmi-i2s,hp-det-gpio", 0, &flags);
+	gpio_hp_det_invert = !!(flags && OF_GPIO_ACTIVE_LOW);
 
 	ret = snd_soc_register_card(card);
 	if (ret)
@@ -127,6 +162,10 @@ static int rockchip_hdmi_i2s_audio_probe(struct platform_device *pdev)
 static int rockchip_hdmi_i2s_audio_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
+	if (gpio_is_valid(gpio_hp_det)) {
+		snd_soc_jack_free_gpios(&hp_jack, 1, &hp_jack_gpio);
+	}
 
 	snd_soc_unregister_card(card);
 
