@@ -98,6 +98,7 @@
 
 	rockchip-hdmi-i2s {
 		compatible = "rockchip-hdmi-i2s";
+		rockchip-hdmi-i2s,hp-det-gpio = <&gpio7 4 GPIO_ACTIVE_LOW>;
 		dais {
 			dai0 {
 				audio-codec = <&codec_hdmi_i2s>;
