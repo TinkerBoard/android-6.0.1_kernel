@@ -108,7 +108,7 @@
 #define RK3288_UART_DBG_PHYS            0xFF690000
 #define RK3288_UART_GPS_PHYS            0xFF1B0000
 #define RK3288_UART_EXP_PHYS            0xFF1C0000
-#define RK3288_UART1_DBG_PHYS           UART_BB_PHYS
+#define RK3288_UART3_DBG_PHYS           0xFF1B0000
 #define RK3288_UART_SIZE                SZ_4K
 #define RK3288_GIC_DIST_PHYS            0xFFC01000
 #define RK3288_GIC_DIST_SIZE            SZ_4K

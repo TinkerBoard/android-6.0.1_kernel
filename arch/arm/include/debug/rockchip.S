@@ -25,8 +25,8 @@
 		cmp	\tmp, \rv
 		ldreq	\rp, = RK3036_UART2_PHYS
 		beq	10f
-#if (CONFIG_RK_DEBUG_UART == 1)
-		ldr	\rp, = RK3288_UART1_DBG_PHYS
+#if (CONFIG_RK_DEBUG_UART == 3)
+		ldr	\rp, = RK3288_UART3_DBG_PHYS
 #else
 		ldr	\rp, = RK3288_UART_DBG_PHYS
 #endif
