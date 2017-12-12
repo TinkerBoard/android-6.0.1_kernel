@@ -386,12 +386,11 @@
 
 &i2c0 {
 	status = "okay";
+
 	rk808: rk808@1b {
 		reg = <0x1b>;
 		status = "okay";
-	};
-	
-
+	};	
 
 	CW2015@62 {
 		compatible = "cw201x";
@@ -490,6 +489,12 @@
 	compass-debug = <0>;
 	};
 */
+
+	ds3231: ds3231@68 {
+		compatible = "maxim,ds3231";
+		reg = <0x68>;
+		status = "okay";
+	};
 };
 
 &i2c2 {
