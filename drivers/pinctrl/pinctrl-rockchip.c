@@ -643,6 +643,15 @@ static int rk32_iomux_bit_op(struct rockchip_pin_bank *bank, int pin, int mux, v
 			data |= (mux & 3) << bit;
 			writel(data, reg);
 		}
+		#ifdef CONFIG_I2S_SHORT
+		else if(bank->bank_num == 6 && (pin == 1 || pin == 2)) 
+		{
+			bit = 1 * 2;
+			data = (0xf << (bit + 16));
+			data |= (((mux << 2) | mux) & 0xf) << bit;
+			writel(data, reg);
+		}
+		#endif
 		else
 		{
 			data = (3 << (bit + 16));
@@ -998,6 +1007,89 @@ static void rockchip_pmx_disable(struct pinctrl_dev *pctldev,
 }
 #endif
 
+static int rockchip_set_pull(struct rockchip_pin_bank *bank,
+					int pin_num, int pull)
+{
+	struct rockchip_pinctrl *info = bank->drvdata;
+	struct rockchip_pin_ctrl *ctrl = info->ctrl;
+	void __iomem *reg;
+	unsigned long flags;
+	u8 bit;
+	u32 data;
+	int pin = pin_num;
+	#ifdef CONFIG_I2S_SHORT
+	/* For gpio 185 and 186 are shorted. */
+	if(bank->bank_num == 6 && pin_num == 2)
+		pull = PIN_CONFIG_BIAS_DISABLE;
+	#endif
+
+	/* rk3066b does support any pulls */
+	if (ctrl->type == RK3066B)
+		return pull ? -EINVAL : 0;
+
+	ctrl->pull_calc_reg(bank, pin_num, &reg, &bit);
+
+	switch (ctrl->type) {
+	case RK2928:
+	case RK3036:
+	case RK312X:
+		spin_lock_irqsave(&bank->slock, flags);
+
+		data = BIT(bit + 16);
+		if (pull == PIN_CONFIG_BIAS_DISABLE)
+			data |= BIT(bit);
+		
+		if(pull != PIN_CONFIG_BIAS_PULL_PIN_DEFAULT)
+		writel(data, reg);
+
+		spin_unlock_irqrestore(&bank->slock, flags);
+		break;
+	case RK3188:
+	case RK3288:
+		spin_lock_irqsave(&bank->slock, flags);
+
+		/* enable the write to the equivalent lower bits,
+		 * but gpio0 has not the write_enable bit.
+		 */
+		if (bank->bank_num == 0) {
+			data = readl_relaxed(reg);
+			data &= ~(3 << bit);
+		} else
+			data = ((1 << RK3188_PULL_BITS_PER_PIN) - 1) << (bit + 16);
+
+		switch (pull) {
+		case PIN_CONFIG_BIAS_DISABLE:
+			break;
+		case PIN_CONFIG_BIAS_PULL_UP:
+			data |= (1 << bit);
+			break;
+		case PIN_CONFIG_BIAS_PULL_DOWN:
+			data |= (2 << bit);
+			break;
+		case PIN_CONFIG_BIAS_BUS_HOLD:
+			data |= (3 << bit);
+			break;
+		default:
+			dev_err(info->dev, "unsupported pull setting %d\n",
+				pull);
+			return -EINVAL;
+		}
+
+		writel(data, reg);
+
+		spin_unlock_irqrestore(&bank->slock, flags);
+		break;
+	default:
+		dev_err(info->dev, "unsupported pinctrl type\n");
+		return -EINVAL;
+	}
+
+
+	DBG_PINCTRL("%s:GPIO%d-%d pull is 0x%x\n", __func__, bank->bank_num, pin_num, data);
+
+	return 0;
+}
+
 /*
  * The calls to gpio_direction_output() and gpio_direction_input()
  * leads to this function call (via the pinctrl_gpio_direction_{input|output}()
@@ -1013,6 +1105,9 @@ static int rockchip_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	int pin;
 	u32 data, result;
 	u32 mux;
+	#ifdef CONFIG_I2S_SHORT
+	unsigned long gpio_pin;
+	#endif
 
 	chip = range->gc;
 	bank = gc_to_pin_bank(chip);
@@ -1021,13 +1116,26 @@ static int rockchip_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	mux = (bank->bank_num << 12) | (((pin / 8) + 0x0A) << 8) | ((pin % 8)<< 4) | RK_FUNC_GPIO;
 
 	rockchip_set_mux(bank, pin, mux);
-
+	#ifdef CONFIG_I2S_SHORT
+	/* For pin 185 and 186 are shorted.  */
+	gpio_pin = bank->pin_base + pin;
+	if (gpio_pin == 185 || gpio_pin == 186) {
+		rockchip_set_pull(bank, 2, PIN_CONFIG_BIAS_DISABLE);
+		if (gpio_pin == 186)
+			input = true;
+	}
+	#endif
 	data = readl_relaxed(bank->reg_base + GPIO_SWPORT_DDR);
 	/* set bit to 1 for output, 0 for input */
 	if (!input)
 		data |= BIT(pin);
 	else
 		data &= ~BIT(pin);
+	#ifdef CONFIG_I2S_SHORT
+	/* FOr pin 185 and 186 are shorted. */
+	if (gpio_pin ==185)
+		data &= ~BIT(2);
+	#endif
 	writel_relaxed(data, bank->reg_base + GPIO_SWPORT_DDR);
 	
 	result = readl_relaxed(bank->reg_base + GPIO_SWPORT_DDR);
@@ -1329,84 +1437,6 @@ static int rockchip_get_pull(struct rockchip_pin_bank *bank, int pin_num)
 }
 #endif
 
-static int rockchip_set_pull(struct rockchip_pin_bank *bank,
-					int pin_num, int pull)
-{
-	struct rockchip_pinctrl *info = bank->drvdata;
-	struct rockchip_pin_ctrl *ctrl = info->ctrl;
-	void __iomem *reg;
-	unsigned long flags;
-	u8 bit;
-	u32 data;
-	int pin = pin_num;
-
-
-	/* rk3066b does support any pulls */
-	if (ctrl->type == RK3066B)
-		return pull ? -EINVAL : 0;
-
-	ctrl->pull_calc_reg(bank, pin_num, &reg, &bit);
-
-	switch (ctrl->type) {
-	case RK2928:
-	case RK3036:
-	case RK312X:
-		spin_lock_irqsave(&bank->slock, flags);
-
-		data = BIT(bit + 16);
-		if (pull == PIN_CONFIG_BIAS_DISABLE)
-			data |= BIT(bit);
-		
-		if(pull != PIN_CONFIG_BIAS_PULL_PIN_DEFAULT)
-		writel(data, reg);
-
-		spin_unlock_irqrestore(&bank->slock, flags);
-		break;
-	case RK3188:
-	case RK3288:
-		spin_lock_irqsave(&bank->slock, flags);
-
-		/* enable the write to the equivalent lower bits,
-		 * but gpio0 has not the write_enable bit.
-		 */
-		if (bank->bank_num == 0) {
-			data = readl_relaxed(reg);
-			data &= ~(3 << bit);
-		} else
-			data = ((1 << RK3188_PULL_BITS_PER_PIN) - 1) << (bit + 16);
-
-		switch (pull) {
-		case PIN_CONFIG_BIAS_DISABLE:
-			break;
-		case PIN_CONFIG_BIAS_PULL_UP:
-			data |= (1 << bit);
-			break;
-		case PIN_CONFIG_BIAS_PULL_DOWN:
-			data |= (2 << bit);
-			break;
-		case PIN_CONFIG_BIAS_BUS_HOLD:
-			data |= (3 << bit);
-			break;
-		default:
-			dev_err(info->dev, "unsupported pull setting %d\n",
-				pull);
-			return -EINVAL;
-		}
-
-		writel(data, reg);
-
-		spin_unlock_irqrestore(&bank->slock, flags);
-		break;
-	default:
-		dev_err(info->dev, "unsupported pinctrl type\n");
-		return -EINVAL;
-	}
-
-
-	DBG_PINCTRL("%s:GPIO%d-%d pull is 0x%x\n", __func__, bank->bank_num, pin_num, data);
-
-	return 0;
-}
 
 /*
  * Pinconf_ops handling
