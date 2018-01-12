@@ -1119,6 +1119,9 @@ static int rockchip_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	#ifdef CONFIG_I2S_SHORT
 	/* For pin 185 and 186 are shorted.  */
 	gpio_pin = bank->pin_base + pin;
+	#ifdef ARCH_GPIO_BASE	// % 1000 for ARCH_GPIO_BASE 1000
+	gpio_pin = gpio_pin % 1000;
+	#endif
 	if (gpio_pin == 185 || gpio_pin == 186) {
 		rockchip_set_pull(bank, 2, PIN_CONFIG_BIAS_DISABLE);
 		if (gpio_pin == 186)
