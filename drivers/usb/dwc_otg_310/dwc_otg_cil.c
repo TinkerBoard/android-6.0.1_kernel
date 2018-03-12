@@ -2859,6 +2859,8 @@ void dwc_otg_hc_halt(dwc_otg_core_if_t *core_if,
 		    (!hc->do_split &&
 		    ((hc->ep_type == DWC_OTG_EP_TYPE_ISOC) ||
 		    (hc->ep_type == DWC_OTG_EP_TYPE_INTR)))) {
+			uint32_t time_usecs = 1000;
+
 			/*
 			 * hcchar.b.chen is 0 means that:
 			 * The channel is either already halted or it hasn't
@@ -2878,6 +2880,12 @@ void dwc_otg_hc_halt(dwc_otg_core_if_t *core_if,
 			 * case), the core generates a channel halted and
 			 * disables the channel automatically.
 			 */
+			do {
+				hcchar.d32 = DWC_READ_REG32(&hc_regs->hcchar);
+				if (!hcchar.b.chen)
+					break;
+				dwc_udelay(1);
+			} while (--time_usecs);
 			DWC_PRINTF("%s: hcchar.b.chen %d, ep_type %d\n",
 				   __func__, hcchar.b.chen, hc->ep_type);
 			return;
@@ -2955,6 +2963,8 @@ void dwc_otg_hc_cleanup(dwc_otg_core_if_t *core_if, dwc_hc_t *hc)
 
 	hc->xfer_started = 0;
 
+	DWC_LIST_REMOVE_INIT(&hc->split_order_list_entry);
+
 	/*
 	 * Clear channel interrupt enables and any unhandled channel interrupt
 	 * conditions.
@@ -2982,32 +2992,90 @@ static inline void hc_set_even_odd_frame(dwc_otg_core_if_t *core_if,
 {
 	if (hc->ep_type == DWC_OTG_EP_TYPE_INTR ||
 	    hc->ep_type == DWC_OTG_EP_TYPE_ISOC) {
-		hfnum_data_t hfnum;
-		hfnum.d32 =
-		    DWC_READ_REG32(&core_if->host_if->host_global_regs->hfnum);
+		int host_speed;
+		int xfer_ns;
+		int xfer_us;
+		int bytes_in_fifo;
+		uint16_t fifo_space;
+		uint16_t frame_number;
+		uint16_t wire_frame;
+		hptxsts_data_t hptxsts;
 
-		/* 1 if _next_ frame is odd, 0 if it's even */
-		hcchar->b.oddfrm = (hfnum.b.frnum & 0x1) ? 0 : 1;
-#ifdef DEBUG
-		if (hc->ep_type == DWC_OTG_EP_TYPE_INTR && hc->do_split
-		    && !hc->complete_split) {
-			switch (hfnum.b.frnum & 0x7) {
-			case 7:
-				core_if->hfnum_7_samples++;
-				core_if->hfnum_7_frrem_accum += hfnum.b.frrem;
-				break;
-			case 0:
-				core_if->hfnum_0_samples++;
-				core_if->hfnum_0_frrem_accum += hfnum.b.frrem;
-				break;
-			default:
-				core_if->hfnum_other_samples++;
-				core_if->hfnum_other_frrem_accum +=
-				    hfnum.b.frrem;
-				break;
-			}
+		/*
+		 * Try to figure out if we're an even or odd frame. If we set
+		 * even and the current frame number is even the the transfer
+		 * will happen immediately.  Similar if both are odd. If one is
+		 * even and the other is odd then the transfer will happen when
+		 * the frame number ticks.
+		 *
+		 * There's a bit of a balancing act to get this right.
+		 * Sometimes we may want to send data in the current frame (AK
+		 * right away).  We might want to do this if the frame number
+		 * _just_ ticked, but we might also want to do this in order
+		 * to continue a split transaction that happened late in a
+		 * microframe (so we didn't know to queue the next transfer
+		 * until the frame number had ticked).  The problem is that we
+		 * need a lot of knowledge to know if there's actually still
+		 * time to send things or if it would be better to wait until
+		 * the next frame.
+		 *
+		 * We can look at how much time is left in the current frame
+		 * and make a guess about whether we'll have time to transfer.
+		 * We'll do that.
+		 */
+
+		/* Get speed host is running at */
+		host_speed = (hc->speed != DWC_OTG_EP_SPEED_HIGH &&
+			      !hc->do_split) ? hc->speed : DWC_OTG_EP_SPEED_HIGH;
+
+		/* See how many bytes are in the periodic FIFO right now */
+		hptxsts.d32 = DWC_READ_REG32(&core_if->host_if->host_global_regs->hptxsts);
+		fifo_space = hptxsts.b.ptxfspcavail;
+
+		bytes_in_fifo = sizeof(u32) *
+			(DWC_READ_REG32(&core_if->core_global_regs->hptxfsiz) >> 16);
+
+		/*
+		 * Roughly estimate bus time for everything in the periodic
+		 * queue + our new transfer.  This is "rough" because we're
+		 * using a function that makes takes into account IN/OUT
+		 * and INT/ISO and we're just slamming in one value for all
+		 * transfers.  This should be an over-estimate and that should
+		 * be OK, but we can probably tighten it.
+		 */
+		xfer_ns = usb_calc_bus_time(host_speed, false, false,
+					    hc->xfer_len + bytes_in_fifo);
+		xfer_us = NS_TO_US(xfer_ns);
+
+		/* See what frame number we'll be at by the time we finish */
+		frame_number = dwc_otg_hcd_get_future_frame_number(core_if, xfer_us);
+
+		/* This is when we were scheduled to be on the wire */
+		wire_frame = dwc_frame_num_inc(hc->qh->next_active_frame, 1);
+
+		/*
+		 * If we'd finish _after_ the frame we're scheduled in then
+		 * it's hopeless.  Just schedule right away and hope for the
+		 * best.  Note that it _might_ be wise to call back into the
+		 * scheduler to pick a better frame, but this is better than
+		 * nothing.
+		 */
+		if (dwc_frame_num_gt(frame_number, wire_frame)) {
+			wire_frame = frame_number;
+
+			/*
+			 * We picked a different frame number; communicate this
+			 * back to the scheduler so it doesn't try to schedule
+			 * another in the same frame.
+			 *
+			 * Remember that next_active_frame is 1 before the wire
+			 * frame.
+			 */
+			hc->qh->next_active_frame =
+				dwc_frame_num_dec(frame_number, 1);
 		}
-#endif
+
+		hcchar->b.oddfrm = (wire_frame & 0x1) ? 1 : 0;
 	}
 }
 
@@ -3554,10 +3622,10 @@ uint32_t calc_frame_interval(dwc_otg_core_if_t *core_if)
 		clock = 48;
 	if (hprt0.b.prtspd == 0)
 		/* High speed case */
-		return 125 * clock;
+		return 125 * clock - 1;
 	else
 		/* FS/LS case */
-		return 1000 * clock;
+		return 1000 * clock - 1;
 }
 
 /**

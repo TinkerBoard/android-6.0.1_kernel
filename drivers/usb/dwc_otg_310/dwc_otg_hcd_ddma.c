@@ -74,8 +74,8 @@ static inline uint16_t max_desc_num(dwc_otg_qh_t *qh)
 static inline uint16_t frame_incr_val(dwc_otg_qh_t *qh)
 {
 	return ((qh->dev_speed == DWC_OTG_EP_SPEED_HIGH)
-		? ((qh->interval + 8 - 1) / 8)
-		: qh->interval);
+		? ((qh->host_interval + 8 - 1) / 8)
+		: qh->host_interval);
 }
 
 static int desc_list_alloc(dwc_otg_qh_t *qh)
@@ -238,7 +238,7 @@ void update_frame_list(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh, uint8_t enable)
 	hc = qh->channel;
 	inc = frame_incr_val(qh);
 	if (qh->ep_type == UE_ISOCHRONOUS)
-		i = frame_list_idx(qh->sched_frame);
+		i = frame_list_idx(qh->next_active_frame);
 	else
 		i = 0;
 
@@ -256,10 +256,10 @@ void update_frame_list(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh, uint8_t enable)
 	if (qh->channel->speed == DWC_OTG_EP_SPEED_HIGH) {
 		j = 1;
 		/* TODO - check this */
-		inc = (8 + qh->interval - 1) / qh->interval;
+		inc = (8 + qh->host_interval - 1) / qh->host_interval;
 		for (i = 0; i < inc; i++) {
 			hc->schinfo |= j;
-			j = j << qh->interval;
+			j = j << qh->host_interval;
 		}
 	} else {
 		hc->schinfo = 0xff;
@@ -403,7 +403,7 @@ static uint8_t calc_starting_frame(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh,
 	uint16_t frame = 0;
 	hcd->frame_number = dwc_otg_hcd_get_frame_number(hcd);
 
-	/* sched_frame is always frame number(not uFrame) both in FS and HS !! */
+	/* next_active_frame is always frame number(not uFrame) both in FS and HS !! */
 
 	/*
 	 * skip_frames is used to limit activated descriptors number
@@ -483,13 +483,13 @@ static uint8_t recalc_initial_desc_idx(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 		 */
 		fr_idx_tmp = frame_list_idx(frame);
 		fr_idx =
-		    (MAX_FRLIST_EN_NUM + frame_list_idx(qh->sched_frame) -
+		    (MAX_FRLIST_EN_NUM + frame_list_idx(qh->next_active_frame) -
 		     fr_idx_tmp)
 		    % frame_incr_val(qh);
 		fr_idx = (fr_idx + fr_idx_tmp) % MAX_FRLIST_EN_NUM;
 	} else {
-		qh->sched_frame = calc_starting_frame(hcd, qh, &skip_frames);
-		fr_idx = frame_list_idx(qh->sched_frame);
+		qh->next_active_frame = calc_starting_frame(hcd, qh, &skip_frames);
+		fr_idx = frame_list_idx(qh->next_active_frame);
 	}
 
 	qh->td_first = qh->td_last = frame_to_desc_idx(qh, fr_idx);
@@ -512,12 +512,12 @@ static void init_isoc_dma_desc(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh,
 	uint16_t idx, inc, n_desc, ntd_max, max_xfer_size;
 
 	idx = qh->td_last;
-	inc = qh->interval;
+	inc = qh->host_interval;
 	n_desc = 0;
 
-	ntd_max = (max_desc_num(qh) + qh->interval - 1) / qh->interval;
+	ntd_max = (max_desc_num(qh) + qh->host_interval - 1) / qh->host_interval;
 	if (skip_frames && !qh->channel)
-		ntd_max = ntd_max - skip_frames / qh->interval;
+		ntd_max = ntd_max - skip_frames / qh->host_interval;
 
 	max_xfer_size =
 	    (qh->dev_speed ==
@@ -629,7 +629,8 @@ static void init_non_isoc_dma_desc(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 		if (n_desc) {
 			/* SG request - more than 1 QTDs */
 			hc->xfer_buff =
-			    (uint8_t *) qtd->urb->dma + qtd->urb->actual_length;
+			    (uint8_t *)(uintptr_t)qtd->urb->dma +
+						  qtd->urb->actual_length;
 			hc->xfer_len =
 			    qtd->urb->length - qtd->urb->actual_length;
 		}
@@ -882,12 +883,12 @@ static void complete_isoc_xfer_ddma(dwc_otg_hcd_t *hcd,
 			/* Stop if IOC requested descriptor reached */
 			if (dma_desc->status.b_isoc.ioc) {
 				idx =
-				    desclist_idx_inc(idx, qh->interval,
+				    desclist_idx_inc(idx, qh->host_interval,
 						     hc->speed);
 				goto stop_scan;
 			}
 
-			idx = desclist_idx_inc(idx, qh->interval, hc->speed);
+			idx = desclist_idx_inc(idx, qh->host_interval, hc->speed);
 
 			if (urb_compl)
 				break;
@@ -1126,7 +1127,7 @@ void dwc_otg_hcd_complete_xfer_ddma(dwc_otg_hcd_t *hcd,
 			dwc_otg_hcd_qh_remove(hcd, qh);
 		} else {
 			/* Keep in assigned schedule to continue transfer */
-			DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_assigned,
+			DWC_LIST_MOVE_TAIL(&hcd->periodic_sched_assigned,
 					   &qh->qh_list_entry);
 			continue_isoc_xfer = 1;
 

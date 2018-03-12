@@ -283,9 +283,10 @@ typedef struct dwc_hc {
 	 *	- DWC_OTG_EP_SPEED_HIGH
 	 */
 	unsigned speed:2;
-#define DWC_OTG_EP_SPEED_LOW	0
-#define DWC_OTG_EP_SPEED_FULL	1
-#define DWC_OTG_EP_SPEED_HIGH	2
+#define DWC_OTG_EP_SPEED_UNKNOWN 0
+#define DWC_OTG_EP_SPEED_LOW	 1
+#define DWC_OTG_EP_SPEED_FULL	 2
+#define DWC_OTG_EP_SPEED_HIGH	 3
 
 	/**
 	 * Endpoint type.
@@ -421,6 +422,7 @@ typedef struct dwc_hc {
 	uint8_t schinfo;
 
 	/** @} */
+	dwc_list_link_t split_order_list_entry;
 } dwc_hc_t;
 
 /**

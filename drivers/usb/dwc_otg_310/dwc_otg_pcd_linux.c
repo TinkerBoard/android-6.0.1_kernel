@@ -1502,6 +1502,7 @@ static void dwc_phy_reconnect(struct work_struct *work)
 		dctl.b.sftdiscon = 0;
 		DWC_WRITE_REG32(&core_if->dev_if->dev_global_regs->dctl,
 				dctl.d32);
+		usleep_range(3500, 4000);
 		printk
 		    ("*******************soft connect!!!*******************\n");
 	}
@@ -1632,10 +1633,6 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 			printk("**************soft reconnect**************\n");
 			goto connect;
 		} else if (_pcd->conn_status == 2) {
-			/* release pcd->wake_lock if fail to connect,
-			 * allow system to enter second sleep.
-			 */
-			dwc_otg_msc_unlock(_pcd);
 			_pcd->conn_status++;
 			if (pldata->bc_detect_cb != NULL) {
 				pldata->bc_detect_cb(_pcd->vbus_status =
@@ -1649,6 +1646,12 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 				udelay(3);
 				pldata->clock_enable(pldata, 0);
 			}
+
+			/*
+			 * Release pcd->wake_lock if fail to connect,
+			 * and allow system to enter deep sleep.
+			 */
+			dwc_otg_msc_unlock(_pcd);
 		}
 	} else {
 		if (pldata->bc_detect_cb != NULL)
@@ -1662,14 +1665,15 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 		}
 
 		if (pldata->phy_status == USB_PHY_ENABLED) {
-			/* release wake lock */
-			dwc_otg_msc_unlock(_pcd);
 			if (pldata->get_status(USB_STATUS_ID)) {
 				/* no vbus detect here , close usb phy  */
 				pldata->phy_suspend(pldata, USB_PHY_SUSPEND);
 				udelay(3);
 				pldata->clock_enable(pldata, 0);
 			}
+
+			/* Release wake lock */
+			dwc_otg_msc_unlock(_pcd);
 		}
 
 		/* usb phy bypass to uart mode  */
@@ -1711,15 +1715,25 @@ void dwc_otg_pcd_start_check_vbus_work(dwc_otg_pcd_t *pcd)
 int dwc_vbus_status(void)
 {
 #ifdef CONFIG_USB20_OTG
+	struct dwc_otg_platform_data *pldata;
 	dwc_otg_pcd_t *pcd = 0;
-	if (gadget_wrapper) {
-		pcd = gadget_wrapper->pcd;
-	}
 
-	if (!pcd)
+	if (gadget_wrapper)
+		pcd = gadget_wrapper->pcd;
+
+	if (pcd) {
+		pldata = pcd->otg_dev->pldata;
+		if (pldata->get_status(USB_STATUS_BVABLID) &&
+		    pldata->get_status(USB_STATUS_ID)) {
+			if (pcd->vbus_status)
+				return pcd->vbus_status;
+			else
+				return USB_BC_TYPE_SDP;
+		}
+			return 0;
+	} else {
 		return 0;
-	else
-		return pcd->vbus_status;
+	}
 #else
 	return 0;
 #endif
