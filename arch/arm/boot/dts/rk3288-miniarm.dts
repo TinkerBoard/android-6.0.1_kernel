@@ -599,13 +599,13 @@
 			label = "power";
 			gpio-key,wakeup;
 		};
-
+/*
 		back-key {
 			linux,code = <158>;
 			label = "back";
 			rockchip,adc_value = <355>;
 		};
-/*
+
 		home-key {
 			linux,code = <102>;
 			label = "home";
@@ -617,12 +617,13 @@
 			label = "back";
 			rockchip,adc_value = <560>;
 		};
-*/
+
 		camera-key {
 			linux,code = <212>;
 			label = "camera";
 			rockchip,adc_value = <450>;
 		};
+*/
 	};
 };
 
