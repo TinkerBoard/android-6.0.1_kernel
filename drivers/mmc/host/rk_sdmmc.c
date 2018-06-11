@@ -58,6 +58,11 @@
 #include <linux/regulator/rockchip_io_vol_domain.h>
 #include "../../clk/rockchip/clk-ops.h"
 
+static int scpi_sys_set_jtagmux_on_off(u32 en)
+{
+        return -EPERM;
+}
+
 #define RK_SDMMC_DRIVER_VERSION "Ver 2.00 2015-06-10"
 
 /* Common flag combinations */

@@ -82,11 +82,6 @@ static inline int scpi_get_sensor_value(u16 sensor, u32 *val)
 	return -EPERM;
 }
 
-static int scpi_sys_set_jtagmux_on_off(u32 en)
-{
-	return -EPERM;
-}
-
 static inline int scpi_sys_set_mcu_state_suspend(void)
 {
 	return -EPERM;
