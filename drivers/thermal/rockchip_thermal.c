@@ -778,7 +778,7 @@ static struct rockchip_thermal_data *rockchip_thermal_get_data(void)
 	BUG_ON(!s_thermal);
 	return s_thermal;
 }
-
+#if 0
 int rockchip_tsadc_get_temp(int chn, int voltage)
 {
 	struct rockchip_thermal_data *thermal = rockchip_thermal_get_data();
@@ -828,7 +828,7 @@ int rockchip_tsadc_get_temp(int chn, int voltage)
 	return temp;
 }
 EXPORT_SYMBOL(rockchip_tsadc_get_temp);
-
+#endif
 static ssize_t rockchip_thermal_temp_adjust_test_store(struct kobject *kobj
 	, struct kobj_attribute *attr, const char *buf, size_t n)
 {
@@ -970,7 +970,7 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 		return error;
 	}
 
-	thermal->pclk = devm_clk_get(&pdev->dev, "apb_pclk");
+	thermal->pclk = devm_clk_get(&pdev->dev, "pclk_tsadc");
 	if (IS_ERR(thermal->pclk)) {
 		error = PTR_ERR(thermal->pclk);
 		dev_err(&pdev->dev, "failed to get apb_pclk clock: %d\n",
@@ -1035,6 +1035,7 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 	thermal->rockchip_thermal_kobj = kobject_create_and_add("rockchip_thermal", NULL);
 	if (!thermal->rockchip_thermal_kobj)
 		return -ENOMEM;
+
 	for (i = 0; i < ARRAY_SIZE(rockchip_thermal_attrs); i++) {
 		error = sysfs_create_file(thermal->rockchip_thermal_kobj
 			, &rockchip_thermal_attrs[i].attr);
