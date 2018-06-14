@@ -586,13 +586,13 @@
 			label = "volume up";
 			rockchip,adc_value = <1>;
 		};
-
+/*
 		vol-down-key {
 			linux,code = <114>;
 			label = "volume down";
 			rockchip,adc_value = <170>;
 		};
-
+*/
 		power-key {
 			gpios = <&gpio0 GPIO_A5 GPIO_ACTIVE_LOW>;
 			linux,code = <116>;
