@@ -91,25 +91,11 @@ out:
 static void rk_ehci_hcd_connect_detect(unsigned long pdata)
 {
 	struct rk_ehci_hcd *rk_ehci = (struct rk_ehci_hcd *)pdata;
-	struct ehci_hcd *ehci = rk_ehci->ehci;
-	struct rkehci_platform_data *pldata;
-	uint32_t status;
 	unsigned long flags;
 
 	local_irq_save(flags);
 
-	pldata = rk_ehci->pldata;
-
-	if (pldata->get_status(USB_STATUS_DPDM)) {
-		/* usb device connected */
-		rk_ehci->host_setenable = 1;
-	} else {
-		/* no device, suspend host */
-		status = readl(&ehci->regs->port_status[0]);
-		if (!(status & PORT_CONNECT)) {
-			rk_ehci->host_setenable = 2;
-		}
-	}
+	rk_ehci->host_setenable = 1;
 
 	if ((rk_ehci->host_enabled)
 	    && (rk_ehci->host_setenable != rk_ehci->host_enabled)) {

@@ -40,6 +40,8 @@
 #include "dwc_otg_core_if.h"
 #include "common_port/dwc_list.h"
 #include "dwc_otg_cil.h"
+#include <linux/usb.h>
+#include <linux/usb/hcd.h>
 
 /**
  * @file
@@ -176,7 +178,46 @@ typedef enum dwc_otg_transaction_type {
 	DWC_OTG_TRANSACTION_ALL
 } dwc_otg_transaction_type_e;
 
+#define DWC_OTG_HCD_US_PER_UFRAME		125
+#define DWC_OTG_HCD_HS_PERIODIC_US_PER_UFRAME	100
+
+#define DWC_OTG_HCD_HS_SCHEDULE_UFRAMES	8
+#define DWC_OTG_HCD_HS_SCHEDULE_US		(DWC_OTG_HCD_HS_SCHEDULE_UFRAMES * \
+					 DWC_OTG_HCD_HS_PERIODIC_US_PER_UFRAME)
+
+#define DWC_OTG_HCD_US_PER_SLICE	25
+#define DWC_OTG_HCD_SLICES_PER_UFRAME	(DWC_OTG_HCD_US_PER_UFRAME / DWC_OTG_HCD_US_PER_SLICE)
+
+#define DWC_OTG_HCD_ROUND_US_TO_SLICE(us) \
+				(DIV_ROUND_UP((us), DWC_OTG_HCD_US_PER_SLICE) * \
+				 DWC_OTG_HCD_US_PER_SLICE)
+
+#define DWC_OTG_HCD_LS_PERIODIC_US_PER_FRAME 900
+
+#define DWC_OTG_HCD_LS_PERIODIC_SLICES_PER_FRAME \
+				(DWC_OTG_HCD_LS_PERIODIC_US_PER_FRAME / \
+				 DWC_OTG_HCD_US_PER_SLICE)
+
+#define DWC_OTG_HCD_LS_SCHEDULE_FRAMES	1
+#define DWC_OTG_HCD_LS_SCHEDULE_SLICES	(DWC_OTG_HCD_LS_SCHEDULE_FRAMES * \
+				 DWC_OTG_HCD_LS_PERIODIC_SLICES_PER_FRAME)
+
+#define DWC_OTG_HCD_ELEMENTS_PER_LS_BITMAP	DIV_ROUND_UP(DWC_OTG_HCD_LS_SCHEDULE_SLICES, \
+						     BITS_PER_LONG)
+
+struct dwc_otg_hcd_tt {
+	int refcount;
+	struct usb_tt *usb_tt;
+	unsigned long periodic_bitmaps[];
+};
+
+struct dwc_otg_hcd_hs_transfer_time {
+	uint32_t start_schedule_us;
+	uint16_t duration_us;
+};
+
 struct dwc_otg_qh;
+struct dwc_otg_hcd;
 
 /**
  * A Queue Transfer Descriptor (QTD) holds the state of a bulk, control,
@@ -312,19 +353,25 @@ typedef struct dwc_otg_qh {
 	/** @{ */
 
 	/** Bandwidth in microseconds per (micro)frame. */
-	uint16_t usecs;
+	uint16_t host_us;
+	uint16_t device_us;
 
 	/** Interval between transfers in (micro)frames. */
-	uint16_t interval;
+	uint16_t host_interval;
+	uint16_t device_interval;
 
 	/**
 	 * (micro)frame to initialize a periodic transfer. The transfer
 	 * executes in the following (micro)frame.
 	 */
-	uint16_t sched_frame;
+	uint16_t next_active_frame;
+
+	int16_t num_hs_transfers;
+	struct dwc_otg_hcd_hs_transfer_time hs_transfers[DWC_OTG_HCD_HS_SCHEDULE_UFRAMES];
+	uint32_t ls_start_schedule_slice;
 
 	/** (micro)frame at which last start split was initialized. */
-	uint16_t start_split_frame;
+	uint16_t start_active_frame;
 
 	/** @} */
 
@@ -363,7 +410,13 @@ typedef struct dwc_otg_qh {
 	uint8_t td_last;
 
 	/** @} */
-
+	struct dwc_otg_hcd *hcd;
+	struct timer_list unreserve_timer;
+	struct dwc_otg_hcd_tt *dwc_tt;
+	int32_t ttport;
+	unsigned tt_buffer_dirty:1;
+	unsigned unreserve_pending:1;
+	unsigned schedule_low_speed:1;
 } dwc_otg_qh_t;
 
 DWC_CIRCLEQ_HEAD(hc_list, dwc_hc);
@@ -392,7 +445,7 @@ struct dwc_otg_hcd {
 			unsigned port_suspend_change:1;
 			unsigned port_over_current_change:1;
 			unsigned port_l1_change:1;
-			unsigned reserved:26;
+			unsigned reserved:25;
 		} b;
 	} flags;
 
@@ -461,6 +514,8 @@ struct dwc_otg_hcd {
 	 */
 	dwc_list_link_t periodic_sched_queued;
 
+	dwc_list_link_t split_order;
+
 	/**
 	 * Total bandwidth claimed so far for periodic transfers. This value
 	 * is in microseconds per (micro)frame. The assumption is that all
@@ -472,6 +527,8 @@ struct dwc_otg_hcd {
 	 * Frame number read from the core at SOF. The value ranges from 0 to
 	 * DWC_HFNUM_MAX_FRNUM.
 	 */
+	unsigned long hs_periodic_bitmap[
+		DIV_ROUND_UP(DWC_OTG_HCD_HS_SCHEDULE_US, BITS_PER_LONG)];
 	uint16_t frame_number;
 
 	/**
@@ -570,6 +627,7 @@ struct dwc_otg_hcd {
 	uint8_t host_setenable;
 	struct timer_list connect_detect_timer;
 	struct delayed_work host_enable_work;
+	struct work_struct phy_rst_work;
 };
 
 /** @name Transaction Execution Functions */
@@ -639,8 +697,6 @@ static inline dwc_otg_qh_t *dwc_otg_hcd_qh_alloc(int atomic_alloc)
 		return (dwc_otg_qh_t *) DWC_ALLOC(sizeof(dwc_otg_qh_t));
 }
 
-extern dwc_otg_qtd_t *dwc_otg_hcd_qtd_create(dwc_otg_hcd_urb_t *urb,
-					     int atomic_alloc);
 extern void dwc_otg_hcd_qtd_init(dwc_otg_qtd_t *qtd, dwc_otg_hcd_urb_t *urb);
 extern int dwc_otg_hcd_qtd_add(dwc_otg_qtd_t *qtd, dwc_otg_hcd_t *dwc_otg_hcd,
 			       dwc_otg_qh_t **qh, int atomic_alloc);
@@ -762,6 +818,11 @@ static inline uint16_t dwc_frame_num_inc(uint16_t frame, uint16_t inc)
 	return (frame + inc) & DWC_HFNUM_MAX_FRNUM;
 }
 
+static inline uint16_t dwc_frame_num_dec(uint16_t frame, uint16_t dec)
+{
+	return (frame + DWC_HFNUM_MAX_FRNUM + 1 - dec) & DWC_HFNUM_MAX_FRNUM;
+}
+
 static inline uint16_t dwc_full_frame_num(uint16_t frame)
 {
 	return (frame & DWC_HFNUM_MAX_FRNUM) >> 3;
@@ -791,7 +852,7 @@ void dwc_otg_hcd_save_data_toggle(dwc_hc_t *hc,
 	hfnum_data_t hfnum; \
 	dwc_otg_qtd_t *qtd; \
 	qtd = list_entry(_qh->qtd_list.next, dwc_otg_qtd_t, qtd_list_entry); \
-	if (usb_pipeint(qtd->urb->pipe) && _qh->start_split_frame != 0 && !qtd->complete_split) { \
+	if (usb_pipeint(qtd->urb->pipe) && _qh->start_active_frame != 0 && !qtd->complete_split) { \
 		hfnum.d32 = DWC_READ_REG32(&_hcd->core_if->host_if->host_global_regs->hfnum); \
 		switch (hfnum.b.frnum & 0x7) { \
 		case 7: \

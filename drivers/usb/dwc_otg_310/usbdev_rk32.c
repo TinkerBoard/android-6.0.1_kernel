@@ -480,6 +480,7 @@ static void rk_ehci_hw_init(void)
 	 * host0 PLL blocks remain powered.
 	 */
 	control_usb->grf_uoc1_base->CON0 = (1 << 16) | 0;
+	control_usb->grf_uoc1_base->CON0 = 0x08000000;
 
 	/* DRV_VBUS GPIO init */
 	if (gpio_is_valid(control_usb->host_gpios->gpio)) {

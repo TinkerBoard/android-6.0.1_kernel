@@ -413,9 +413,29 @@ static int dw_mci_rockchip_probe(struct platform_device *pdev)
 	return dw_mci_pltfm_register(pdev, drv_data);
 }
 
+static void dw_mci_rockchip_shutdown(struct platform_device *pdev)
+{
+	int gpio;
+	enum of_gpio_flags flags;
+	struct dw_mci *host = platform_get_drvdata(pdev);
+
+	if(host != NULL) {
+		gpio = of_get_named_gpio_flags(host->dev->of_node, "maskrom_gpio", 0, &flags);
+
+		if (gpio_is_valid(gpio)) {
+			if(!gpio_request(gpio, "maskrom_gpio")) {
+				gpio_direction_output(gpio, (flags==GPIO_ACTIVE_HIGH)?0:1);
+				gpio_free(gpio);
+				mdelay(10);
+				dev_info(host->dev, "do not override the maskrom jumper status\n");
+			}
+		}
+	}
+}
 static struct platform_driver dw_mci_rockchip_pltfm_driver = {
 	.probe		= dw_mci_rockchip_probe,
 	.remove		= __exit_p(dw_mci_pltfm_remove),
+	.shutdown	= dw_mci_rockchip_shutdown,
 	.driver		= {
 		.name		= "dwmmc_rockchip",
 		.of_match_table	= dw_mci_rockchip_match,
