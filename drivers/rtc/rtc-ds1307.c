@@ -709,6 +709,15 @@ static int ds1307_probe(struct i2c_client *client,
 	case ds_1337:
 	case ds_1339:
 	case ds_3231:
+
+		/*  Add this line for 1. set dev->power.can_wakeup
+		 *		      2. set dev->power.wakeup 
+		 *
+		 *  This makes the alarmtimer_rtc_add_device() can work
+		 *  normally.
+		 */ 
+		device_init_wakeup(&client->dev, 1);
+
 		/* get registers that the "rtc" read below won't read... */
 		tmp = ds1307->read_block_data(ds1307->client,
 				DS1337_REG_CONTROL, 2, buf);
