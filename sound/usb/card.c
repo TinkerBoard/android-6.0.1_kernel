@@ -116,7 +116,7 @@ static DEFINE_MUTEX(register_mutex);
 static struct snd_usb_audio *usb_chip[SNDRV_CARDS];
 static struct usb_driver usb_audio_driver;
 #ifdef CONFIG_SND_RK_SOC
-//#define USB_AUDIO_EXT_CARD_IDX	1
+#define USB_AUDIO_EXT_CARD_IDX	1
 #define USB_AUDIO_ONBOARD_CARD_IDX	3
 struct switch_dev *usb_audio_sdev;
 #endif
@@ -397,11 +397,8 @@ static int snd_usb_audio_create(struct usb_device *dev, int idx,
 		err = snd_card_create(USB_AUDIO_ONBOARD_CARD_IDX, id[idx], THIS_MODULE, 0, &card);
 		snd_printk(KERN_INFO "onboard usb card\n");
 	} else {
-                /*
 		err = snd_card_create(USB_AUDIO_EXT_CARD_IDX, id[idx], THIS_MODULE, 0, &card);
 		snd_printk(KERN_INFO "external usb card\n");
-                */
-                err = snd_card_create(index[idx], id[idx], THIS_MODULE, 0, &card);
 	}
 #else
 	err = snd_card_create(index[idx], id[idx], THIS_MODULE, 0, &card);
